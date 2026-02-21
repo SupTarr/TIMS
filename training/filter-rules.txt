@@ -1,0 +1,3 @@
+- TIMS_dataset/**
+- TIMS_dataset_all/**
+- TIMS_dataset_complete_all/**
