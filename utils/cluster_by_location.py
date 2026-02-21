@@ -44,9 +44,7 @@ from sklearn.preprocessing import normalize
 
 from common import (
     BASE_DIR,
-    CCTV_PATTERN,
     group_tiles_by_frame,
-    parse_filename,
     pick_representative,
     pick_representatives,
     time_period,
@@ -169,9 +167,7 @@ def extract_structural_features(img_path: Path) -> np.ndarray:
 
 
 def extract_structural_batch(
-    frames: dict[str, list[dict]],
-    ts_list: list[str],
-    tiles_per_frame: int,
+    frames: dict[str, list[dict]], ts_list: list[str], tiles_per_frame: int
 ) -> np.ndarray:
     """Extract structural features for each frame (averaged over representative tiles)."""
     all_features = []
@@ -316,15 +312,10 @@ def generate_preview(
 ):
     """Save a grid image: rows = clusters, cols = sample tiles."""
     fig, axes = plt.subplots(
-        n_clusters,
-        n_samples,
-        figsize=(3 * n_samples, 3 * n_clusters),
-        squeeze=False,
+        n_clusters, n_samples, figsize=(3 * n_samples, 3 * n_clusters), squeeze=False
     )
     fig.suptitle(
-        "Cluster Preview (rows = locations) - CLIP + Structural",
-        fontsize=14,
-        y=1.01,
+        "Cluster Preview (rows = locations) - CLIP + Structural", fontsize=14, y=1.01
     )
 
     for cluster_id in range(n_clusters):
@@ -360,9 +351,7 @@ def generate_preview(
 
 
 def copy_to_location_folders(
-    frames: dict[str, list[dict]],
-    ts_to_cluster: dict[str, int],
-    dst_dir: Path,
+    frames: dict[str, list[dict]], ts_to_cluster: dict[str, int], dst_dir: Path
 ):
     """Copy all tiles into per-location subdirectories. Source is never modified."""
     total_copied = 0
@@ -376,9 +365,7 @@ def copy_to_location_folders(
 
 
 def write_csv(
-    frames: dict[str, list[dict]],
-    ts_to_cluster: dict[str, int],
-    csv_path: Path,
+    frames: dict[str, list[dict]], ts_to_cluster: dict[str, int], csv_path: Path
 ):
     """Write cluster_mapping.csv with full per-tile metadata."""
     csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -428,10 +415,7 @@ def main():
         help="Force number of clusters (default: auto-detect)",
     )
     parser.add_argument(
-        "--device",
-        type=str,
-        default="auto",
-        choices=["auto", "cpu", "mps", "cuda"],
+        "--device", type=str, default="auto", choices=["auto", "cpu", "mps", "cuda"]
     )
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument(
@@ -531,12 +515,7 @@ def main():
 
         w_clip = 1.0 - args.structural_weight
         w_struct = args.structural_weight
-        embeddings = np.hstack(
-            [
-                clip_reduced * w_clip,
-                struct_features * w_struct,
-            ]
-        )
+        embeddings = np.hstack([clip_reduced * w_clip, struct_features * w_struct])
         embeddings = normalize(embeddings)
         print(
             f"  Fused shape: {embeddings.shape} (CLIP x{w_clip:.1f} + Struct x{w_struct:.1f})"
@@ -544,7 +523,7 @@ def main():
     else:
         print(f"\n[5/8] Structural features skipped (--no-structural)")
         embeddings = clip_reduced
-    
+
     if args.n_clusters is not None:
         n_clusters = args.n_clusters
         print(f"\n[6/8] Clustering with K={n_clusters} (user-specified)...")

@@ -27,7 +27,6 @@ CCTV_PATTERN = re.compile(
     r"^(?P<hexhash>[0-9a-fA-F]{8})-(?P<timestamp>\d{6})_100_(?P<tile>\d+)\.jpe?g$"
 )
 
-# Looser pattern for classifier (matches any middle number, not just 100)
 CCTV_PATTERN_LOOSE = re.compile(r"^[0-9a-fA-F]{8}-\d{6}_\d+_\d+")
 
 

@@ -120,15 +120,10 @@ def main():
     print(f"\nGenerating preview grid ({n_clusters} rows x {n_samples} cols)...")
 
     fig, axes = plt.subplots(
-        n_clusters,
-        n_samples,
-        figsize=(3 * n_samples, 3 * n_clusters),
-        squeeze=False,
+        n_clusters, n_samples, figsize=(3 * n_samples, 3 * n_clusters), squeeze=False
     )
     fig.suptitle(
-        "Cluster Preview (rows = locations) - CLIP + Structural",
-        fontsize=14,
-        y=1.01,
+        "Cluster Preview (rows = locations) - CLIP + Structural", fontsize=14, y=1.01
     )
 
     for row_idx, (loc_id, _) in enumerate(locations):
