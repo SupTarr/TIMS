@@ -26,9 +26,7 @@ from PIL import Image
 from common import (
     BASE_DIR as _TIMS_BASE,
     group_tiles_by_frame,
-    parse_filename,
     pick_representative,
-    pick_representatives,
     time_period,
 )
 
