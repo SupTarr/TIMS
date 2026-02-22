@@ -95,9 +95,7 @@ def time_period(ts: str) -> str:
 # ──────────────────────────────────────────────────────────────────────
 # Location discovery
 # ──────────────────────────────────────────────────────────────────────
-def discover_locations(
-    base_dir: Optional[Path] = None,
-) -> list[tuple[int, Path]]:
+def discover_locations(base_dir: Optional[Path] = None) -> list[tuple[int, Path]]:
     """Find all location_* folders sorted by numeric id."""
     base_dir = base_dir or TRAIN_BY_LOCATION
     locs = []
@@ -115,9 +113,7 @@ def discover_locations(
 # ──────────────────────────────────────────────────────────────────────
 # ROI config I/O
 # ──────────────────────────────────────────────────────────────────────
-def load_road_roi(
-    config_path: Optional[Path] = None,
-) -> dict[str, np.ndarray]:
+def load_road_roi(config_path: Optional[Path] = None) -> dict[str, np.ndarray]:
     """
     Load road ROI polygons from JSON config.
 
@@ -151,8 +147,7 @@ class _NumpyEncoder(json.JSONEncoder):
 
 
 def save_road_roi(
-    roi_data: dict[str, dict],
-    config_path: Optional[Path] = None,
+    roi_data: dict[str, dict], config_path: Optional[Path] = None
 ) -> Path:
     """
     Save road ROI config to JSON.

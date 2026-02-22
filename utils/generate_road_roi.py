@@ -63,17 +63,17 @@ LANE_SEG_WEIGHTS = (
 )
 
 # Auto-suggestion parameters
-KDE_BANDWIDTH = 80          # KDE bandwidth in pixels
-HEATMAP_THRESHOLD = 0.25    # fraction of max density to threshold at
+KDE_BANDWIDTH = 80  # KDE bandwidth in pixels
+HEATMAP_THRESHOLD = 0.25  # fraction of max density to threshold at
 APPROX_EPSILON_FRAC = 0.02  # cv2.approxPolyDP epsilon as fraction of perimeter
 
 # Interactive GUI parameters
 VERTEX_RADIUS = 8
 VERTEX_GRAB_RADIUS = 15
 OVERLAY_ALPHA = 0.30
-POLY_COLOR = (0, 255, 0)        # green fill
-POLY_EDGE_COLOR = (0, 200, 0)   # green edges
-VERTEX_COLOR = (0, 0, 255)      # red vertices
+POLY_COLOR = (0, 255, 0)  # green fill
+POLY_EDGE_COLOR = (0, 200, 0)  # green edges
+VERTEX_COLOR = (0, 0, 255)  # red vertices
 TEXT_COLOR = (255, 255, 255)
 
 WINDOW_NAME = "Road ROI Annotation"
@@ -82,9 +82,7 @@ WINDOW_NAME = "Road ROI Annotation"
 # ──────────────────────────────────────────────────────────────────────
 # Step A — Auto-suggest ROI via detection-label heatmap
 # ──────────────────────────────────────────────────────────────
-def load_label_centroids(
-    labels_dir: Path, img_w: int, img_h: int
-) -> np.ndarray:
+def load_label_centroids(labels_dir: Path, img_w: int, img_h: int) -> np.ndarray:
     """
     Read YOLO label files and convert normalised bbox centres to pixel coords.
     Returns an (N, 2) array of [x, y] pixel positions.
@@ -151,9 +149,7 @@ def heatmap_to_polygon(
     return approx.reshape(-1, 2).astype(np.int32)
 
 
-def autosuggest_from_labels(
-    loc_dir: Path, img_w: int, img_h: int
-) -> np.ndarray:
+def autosuggest_from_labels(loc_dir: Path, img_w: int, img_h: int) -> np.ndarray:
     """Full auto-suggestion pipeline: labels → heatmap → polygon."""
     labels_dir = loc_dir / "labels"
     if not labels_dir.exists():
@@ -179,6 +175,7 @@ def load_lane_seg_model(weights: Path):
         return None
     try:
         from ultralytics import YOLO
+
         model = YOLO(str(weights))
         logger.info(f"Loaded lane-seg model from {weights}")
         return model
@@ -187,9 +184,7 @@ def load_lane_seg_model(weights: Path):
         return None
 
 
-def lane_seg_mask(
-    model, images: list[Path], img_w: int, img_h: int
-) -> np.ndarray:
+def lane_seg_mask(model, images: list[Path], img_w: int, img_h: int) -> np.ndarray:
     """
     Run lane-seg inference on a set of images, union the masks,
     and return a binary (H, W) uint8 mask.
@@ -201,9 +196,7 @@ def lane_seg_mask(
             if results and results[0].masks is not None:
                 for m in results[0].masks.data:
                     seg = m.cpu().numpy()
-                    seg_resized = cv2.resize(
-                        seg.astype(np.float32), (img_w, img_h)
-                    )
+                    seg_resized = cv2.resize(seg.astype(np.float32), (img_w, img_h))
                     union_mask[seg_resized > 0.5] = 255
         except Exception as e:
             logger.debug(f"Lane-seg failed on {img_path.name}: {e}")
@@ -226,7 +219,9 @@ def refine_polygon_with_lane_seg(
 
     seg_mask = lane_seg_mask(model, sample, img_w, img_h)
     if seg_mask.max() == 0:
-        logger.info(f"  {loc_dir.name}: lane-seg produced empty mask, using labels only")
+        logger.info(
+            f"  {loc_dir.name}: lane-seg produced empty mask, using labels only"
+        )
         return base_polygon
 
     # Merge: union of label heatmap polygon mask + lane seg mask
@@ -268,7 +263,7 @@ class ROIAnnotator:
     def _find_nearest_vertex(self, x: int, y: int) -> Optional[int]:
         """Return index of nearest vertex within grab radius, or None."""
         for i, (vx, vy) in enumerate(self.polygon):
-            if (vx - x) ** 2 + (vy - y) ** 2 <= VERTEX_GRAB_RADIUS ** 2:
+            if (vx - x) ** 2 + (vy - y) ** 2 <= VERTEX_GRAB_RADIUS**2:
                 return i
         return None
 
@@ -303,8 +298,14 @@ class ROIAnnotator:
         for i, (vx, vy) in enumerate(self.polygon):
             cv2.circle(vis, (vx, vy), VERTEX_RADIUS, VERTEX_COLOR, -1, cv2.LINE_AA)
             cv2.putText(
-                vis, str(i), (vx + 10, vy - 5),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, TEXT_COLOR, 1, cv2.LINE_AA,
+                vis,
+                str(i),
+                (vx + 10, vy - 5),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                TEXT_COLOR,
+                1,
+                cv2.LINE_AA,
             )
 
         # Help text
@@ -316,8 +317,14 @@ class ROIAnnotator:
         ]
         for i, txt in enumerate(lines):
             cv2.putText(
-                vis, txt, (10, h - 10 - (len(lines) - 1 - i) * 25),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 1, cv2.LINE_AA,
+                vis,
+                txt,
+                (10, h - 10 - (len(lines) - 1 - i) * 25),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (0, 255, 255),
+                1,
+                cv2.LINE_AA,
             )
         return vis
 
@@ -327,8 +334,11 @@ class ROIAnnotator:
         Sets self.quit if user pressed 'q'.
         """
         cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(WINDOW_NAME, min(self.base_image.shape[1], 1600),
-                         min(self.base_image.shape[0], 900))
+        cv2.resizeWindow(
+            WINDOW_NAME,
+            min(self.base_image.shape[1], 1600),
+            min(self.base_image.shape[0], 900),
+        )
         cv2.setMouseCallback(WINDOW_NAME, self._mouse_callback)
 
         while True:
@@ -392,8 +402,13 @@ def preview_existing(config_path: Path):
         cv2.addWeighted(overlay, OVERLAY_ALPHA, img, 1 - OVERLAY_ALPHA, 0, img)
         cv2.polylines(img, [poly], True, POLY_EDGE_COLOR, 2, cv2.LINE_AA)
         cv2.putText(
-            img, f"{loc_name} ({len(poly)} vertices)",
-            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2,
+            img,
+            f"{loc_name} ({len(poly)} vertices)",
+            (10, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0, 255, 255),
+            2,
         )
 
         cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
@@ -419,8 +434,7 @@ def pick_annotation_image(loc_dir: Path) -> Optional[Path]:
     # Prefer daytime
     for period_pref in ("day", "night", "IR"):
         candidates = [
-            p for p in all_imgs
-            if time_period(p.name.split("-")[1][:6]) == period_pref
+            p for p in all_imgs if time_period(p.name.split("-")[1][:6]) == period_pref
         ]
         if candidates:
             return candidates[len(candidates) // 2]  # pick middle
@@ -441,23 +455,26 @@ def main():
         description="Semi-automatic road ROI annotation per camera location"
     )
     parser.add_argument(
-        "--location", type=int, default=None,
+        "--location",
+        type=int,
+        default=None,
         help="Annotate only this location ID (e.g. --location 3)",
     )
     parser.add_argument(
-        "--no-auto", action="store_true",
+        "--no-auto",
+        action="store_true",
         help="Skip auto-suggestion, start with blank polygon",
     )
     parser.add_argument(
-        "--no-lane-seg", action="store_true",
-        help="Skip lane-segmentation refinement",
+        "--no-lane-seg", action="store_true", help="Skip lane-segmentation refinement"
     )
     parser.add_argument(
-        "--preview-only", action="store_true",
-        help="View existing ROIs without editing",
+        "--preview-only", action="store_true", help="View existing ROIs without editing"
     )
     parser.add_argument(
-        "--output", type=str, default=None,
+        "--output",
+        type=str,
+        default=None,
         help=f"Output JSON path (default: {ROI_CONFIG})",
     )
     args = parser.parse_args()
@@ -548,10 +565,7 @@ def main():
             print(f"  {loc_name}: skipped")
             continue
 
-        existing[loc_name] = {
-            "polygon": result,
-            "image_size": [img_w, img_h],
-        }
+        existing[loc_name] = {"polygon": result, "image_size": [img_w, img_h]}
         print(f"  {loc_name}: saved {len(result)} vertices")
 
     # ── Save ──────────────────────────────────────────────────────

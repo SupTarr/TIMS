@@ -63,9 +63,7 @@ def load_roi_config(config_path: Path = ROI_CONFIG) -> dict:
     return json.loads(config_path.read_text())
 
 
-def parse_yolo_labels(
-    label_path: Path,
-) -> list[tuple[float, float, float, float]]:
+def parse_yolo_labels(label_path: Path) -> list[tuple[float, float, float, float]]:
     """
     Parse YOLO label file into list of (cx, cy, w, h) normalised coords.
     Returns empty list for empty / missing files.
@@ -241,7 +239,7 @@ def classify_density(dry_run: bool = False, verbose: bool = False) -> None:
 # ──────────────────────────────────────────────────────────────────────
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Classify images by traffic density (vehicle-ROI coverage).",
+        description="Classify images by traffic density (vehicle-ROI coverage)."
     )
     parser.add_argument(
         "--dry-run",

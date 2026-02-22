@@ -74,24 +74,28 @@ def main():
         description="Generate ROI preview montage from road_roi.json"
     )
     parser.add_argument(
-        "--config", type=str, default=None,
+        "--config",
+        type=str,
+        default=None,
         help=f"Path to road_roi.json (default: {ROI_CONFIG})",
     )
     parser.add_argument(
-        "--output", type=str, default=None,
+        "--output",
+        type=str,
+        default=None,
         help="Output image path (default: train_by_location/roi_preview.png)",
     )
     parser.add_argument(
-        "--samples", type=int, default=PREVIEW_SAMPLES,
+        "--samples",
+        type=int,
+        default=PREVIEW_SAMPLES,
         help="Number of sample images per location (default: 3)",
     )
     args = parser.parse_args()
 
     config_path = Path(args.config) if args.config else ROI_CONFIG
     save_path = (
-        Path(args.output)
-        if args.output
-        else TRAIN_BY_LOCATION / "roi_preview.png"
+        Path(args.output) if args.output else TRAIN_BY_LOCATION / "roi_preview.png"
     )
     n_samples = args.samples
 
@@ -120,9 +124,7 @@ def main():
 
     # Build grid: one row per location, n_samples columns
     fig, axes = plt.subplots(
-        n_locs, n_samples,
-        figsize=(4 * n_samples, 3 * n_locs),
-        squeeze=False,
+        n_locs, n_samples, figsize=(4 * n_samples, 3 * n_locs), squeeze=False
     )
     fig.suptitle("Road ROI Preview (green overlay)", fontsize=14, y=1.01)
 
@@ -148,8 +150,14 @@ def main():
                         img = overlay_roi(img, polygon)
                     ax.imshow(img)
                 except Exception:
-                    ax.text(0.5, 0.5, "ERR", ha="center", va="center",
-                            transform=ax.transAxes)
+                    ax.text(
+                        0.5,
+                        0.5,
+                        "ERR",
+                        ha="center",
+                        va="center",
+                        transform=ax.transAxes,
+                    )
 
                 period = time_period(ts)
                 ax.set_title(f"{ts} ({period})", fontsize=7)
@@ -158,8 +166,7 @@ def main():
 
         status = f"{len(polygon)} pts" if has_roi else "NO ROI"
         axes[row][0].set_ylabel(
-            f"{loc_name}\n({status})",
-            fontsize=9, rotation=0, labelpad=80, va="center",
+            f"{loc_name}\n({status})", fontsize=9, rotation=0, labelpad=80, va="center"
         )
 
     plt.tight_layout()
