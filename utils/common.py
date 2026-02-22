@@ -6,9 +6,11 @@ Provides common filename parsing, frame grouping, and tile selection
 used by cluster_by_location.py, generate_cluster_preview.py, and classifier.py.
 """
 
+import json
 import re
 from collections import defaultdict
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 
@@ -22,6 +24,10 @@ BASE_DIR = (
     / "data_train"
     / "TIMS_density_dataset"
 )
+
+TRAIN_BY_LOCATION = BASE_DIR / "raw" / "train_by_location"
+
+ROI_CONFIG = TRAIN_BY_LOCATION / "road_roi.json"
 
 CCTV_PATTERN = re.compile(
     r"^(?P<hexhash>[0-9a-fA-F]{8})-(?P<timestamp>\d{6})_100_(?P<tile>\d+)\.jpe?g$"
@@ -84,3 +90,77 @@ def time_period(ts: str) -> str:
     if hour >= 18:
         return "night"
     return "day"
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Location discovery
+# ──────────────────────────────────────────────────────────────────────
+def discover_locations(
+    base_dir: Optional[Path] = None,
+) -> list[tuple[int, Path]]:
+    """Find all location_* folders sorted by numeric id."""
+    base_dir = base_dir or TRAIN_BY_LOCATION
+    locs = []
+    for d in sorted(base_dir.iterdir()):
+        if d.is_dir() and d.name.startswith("location_"):
+            try:
+                loc_id = int(d.name.split("_", 1)[1])
+                locs.append((loc_id, d))
+            except ValueError:
+                continue
+    locs.sort(key=lambda x: x[0])
+    return locs
+
+
+# ──────────────────────────────────────────────────────────────────────
+# ROI config I/O
+# ──────────────────────────────────────────────────────────────────────
+def load_road_roi(
+    config_path: Optional[Path] = None,
+) -> dict[str, np.ndarray]:
+    """
+    Load road ROI polygons from JSON config.
+
+    Returns a dict mapping location name (e.g. ``"location_0"``) to an
+    ``np.ndarray`` of shape (N, 2) with dtype ``int32``, matching the
+    ``ROI_POLYGON`` convention used elsewhere in the project.
+    """
+    config_path = config_path or ROI_CONFIG
+    if not config_path.exists():
+        raise FileNotFoundError(f"ROI config not found: {config_path}")
+    data = json.loads(config_path.read_text())
+    roi_map: dict[str, np.ndarray] = {}
+    for loc_name, entry in data.items():
+        polygon = entry.get("polygon", [])
+        if polygon:
+            roi_map[loc_name] = np.array(polygon, dtype=np.int32)
+    return roi_map
+
+
+class _NumpyEncoder(json.JSONEncoder):
+    """Encode numpy scalars/arrays so roi_data round-trips cleanly."""
+
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
+
+def save_road_roi(
+    roi_data: dict[str, dict],
+    config_path: Optional[Path] = None,
+) -> Path:
+    """
+    Save road ROI config to JSON.
+
+    *roi_data* maps location name → ``{"polygon": [[x,y], ...], "image_size": [w, h]}``.
+    Returns the path written.
+    """
+    config_path = config_path or ROI_CONFIG
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(json.dumps(roi_data, indent=2, cls=_NumpyEncoder) + "\n")
+    return config_path
