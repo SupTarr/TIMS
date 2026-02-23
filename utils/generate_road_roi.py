@@ -40,10 +40,7 @@ from sklearn.neighbors import KernelDensity
 from common import (
     BASE_DIR,
     ROI_CONFIG,
-    TRAIN_BY_LOCATION,
     discover_locations,
-    group_tiles_by_frame,
-    pick_representative,
     save_road_roi,
     time_period,
 )

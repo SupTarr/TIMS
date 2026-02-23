@@ -28,6 +28,7 @@ from common import (
     group_tiles_by_frame,
     pick_representative,
     time_period,
+    discover_locations,
 )
 
 # ──────────────────────────────────────────────────────────────────────
@@ -41,20 +42,6 @@ PREVIEW_SAMPLES = 5
 # ──────────────────────────────────────────────────────────────────────
 # Helpers (location folder discovery + sampling)
 # ──────────────────────────────────────────────────────────────────────
-def discover_locations(base_dir: Path) -> list[tuple[int, Path]]:
-    """Find all location_* folders sorted by numeric id."""
-    locs = []
-    for d in sorted(base_dir.iterdir()):
-        if d.is_dir() and d.name.startswith("location_"):
-            try:
-                loc_id = int(d.name.split("_", 1)[1])
-                locs.append((loc_id, d))
-            except ValueError:
-                continue
-    locs.sort(key=lambda x: x[0])
-    return locs
-
-
 def pick_sample_frames(frames: dict[str, list[dict]], n: int) -> list[str]:
     """Pick n timestamps evenly spaced across sorted timestamps."""
     ts_sorted = sorted(frames.keys())
