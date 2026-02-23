@@ -37,13 +37,7 @@ import numpy as np
 from PIL import Image
 from sklearn.neighbors import KernelDensity
 
-from common import (
-    BASE_DIR,
-    ROI_CONFIG,
-    discover_locations,
-    save_road_roi,
-    time_period,
-)
+from common import BASE_DIR, ROI_CONFIG, discover_locations, save_road_roi, time_period
 
 logger = logging.getLogger(__name__)
 
