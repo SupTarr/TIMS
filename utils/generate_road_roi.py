@@ -59,18 +59,16 @@ LANE_SEG_WEIGHTS = (
     / "best.pt"
 )
 
-# Auto-suggestion parameters
-KDE_BANDWIDTH = 80  # KDE bandwidth in pixels
-HEATMAP_THRESHOLD = 0.25  # fraction of max density to threshold at
-APPROX_EPSILON_FRAC = 0.02  # cv2.approxPolyDP epsilon as fraction of perimeter
+KDE_BANDWIDTH = 80
+HEATMAP_THRESHOLD = 0.25
+APPROX_EPSILON_FRAC = 0.02
 
-# Interactive GUI parameters
 VERTEX_RADIUS = 8
 VERTEX_GRAB_RADIUS = 15
 OVERLAY_ALPHA = 0.30
-POLY_COLOR = (0, 255, 0)  # green fill
-POLY_EDGE_COLOR = (0, 200, 0)  # green edges
-VERTEX_COLOR = (0, 0, 255)  # red vertices
+POLY_COLOR = (0, 255, 0)
+POLY_EDGE_COLOR = (0, 200, 0)
+VERTEX_COLOR = (0, 0, 255)
 TEXT_COLOR = (255, 255, 255)
 
 WINDOW_NAME = "Road ROI Annotation"
@@ -110,7 +108,6 @@ def build_heatmap(
     kde = KernelDensity(bandwidth=bandwidth, kernel="gaussian")
     kde.fit(centroids)
 
-    # Evaluate on a coarse grid then resize for speed
     step = 8
     xs = np.arange(0, img_w, step)
     ys = np.arange(0, img_h, step)
@@ -131,7 +128,6 @@ def heatmap_to_polygon(
     thresh_val = heatmap.max() * threshold_frac
     mask = (heatmap >= thresh_val).astype(np.uint8) * 255
 
-    # Morphological close to fill gaps
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
@@ -139,7 +135,6 @@ def heatmap_to_polygon(
     if not contours:
         return np.empty((0, 2), dtype=np.int32)
 
-    # Take the largest contour
     largest = max(contours, key=cv2.contourArea)
     peri = cv2.arcLength(largest, True)
     approx = cv2.approxPolyDP(largest, APPROX_EPSILON_FRAC * peri, True)
@@ -205,12 +200,10 @@ def refine_polygon_with_lane_seg(
 ) -> np.ndarray:
     """Combine label-based polygon with lane-seg mask."""
     images_dir = loc_dir / "images"
-    # Pick up to 5 representative images (prefer daytime)
     all_imgs = sorted(images_dir.glob("*.jpg"))
     if not all_imgs:
         return base_polygon
 
-    # Prefer daytime images for clearer segmentation
     day_imgs = [p for p in all_imgs if time_period(p.name.split("-")[1][:6]) == "day"]
     sample = (day_imgs or all_imgs)[:5]
 
@@ -221,12 +214,10 @@ def refine_polygon_with_lane_seg(
         )
         return base_polygon
 
-    # Merge: union of label heatmap polygon mask + lane seg mask
     combined = seg_mask.copy()
     if len(base_polygon) >= 3:
         cv2.fillPoly(combined, [base_polygon], 255)
 
-    # Morphological close
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
     combined = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, kernel)
 
@@ -270,7 +261,6 @@ class ROIAnnotator:
             if idx is not None:
                 self.dragging_idx = idx
             else:
-                # Add vertex: insert after the nearest edge midpoint
                 self.polygon.append([x, y])
         elif event == cv2.EVENT_MOUSEMOVE:
             if self.dragging_idx is not None:
@@ -305,7 +295,6 @@ class ROIAnnotator:
                 cv2.LINE_AA,
             )
 
-        # Help text
         h = vis.shape[0]
         lines = [
             f"{self.title}  |  {len(self.polygon)} vertices",
@@ -343,7 +332,7 @@ class ROIAnnotator:
             cv2.imshow(WINDOW_NAME, vis)
             key = cv2.waitKey(30) & 0xFF
 
-            if key == ord("n") or key == 13:  # Enter
+            if key == ord("n") or key == 13:
                 self.accepted = True
                 break
             elif key == ord("s"):
@@ -356,7 +345,7 @@ class ROIAnnotator:
                 self.polygon = [list(p) for p in self.auto_polygon]
             elif key == ord("c"):
                 self.polygon = []
-            elif key == 27:  # Esc = quit
+            elif key == 27:
                 self.quit = True
                 break
 
@@ -386,7 +375,6 @@ def preview_existing(config_path: Path):
             print(f"{loc_name}: no ROI defined, skipping")
             continue
 
-        # Load a sample image
         images_dir = loc_dir / "images"
         sample_img = next(images_dir.glob("*.jpg"), None)
         if sample_img is None:
@@ -428,13 +416,12 @@ def pick_annotation_image(loc_dir: Path) -> Optional[Path]:
     if not all_imgs:
         return None
 
-    # Prefer daytime
     for period_pref in ("day", "night", "IR"):
         candidates = [
             p for p in all_imgs if time_period(p.name.split("-")[1][:6]) == period_pref
         ]
         if candidates:
-            return candidates[len(candidates) // 2]  # pick middle
+            return candidates[len(candidates) // 2]
     return all_imgs[len(all_imgs) // 2]
 
 
@@ -478,12 +465,10 @@ def main():
 
     config_path = Path(args.output) if args.output else ROI_CONFIG
 
-    # ── Preview mode ──────────────────────────────────────────────
     if args.preview_only:
         preview_existing(config_path)
         return
 
-    # ── Discover locations ────────────────────────────────────────
     locations = discover_locations()
     if args.location is not None:
         locations = [(lid, ld) for lid, ld in locations if lid == args.location]
@@ -500,25 +485,21 @@ def main():
     print(f"Output: {config_path}")
     print()
 
-    # ── Load existing config (to preserve other locations) ────────
     existing: dict[str, dict] = {}
     if config_path.exists():
         existing = json.loads(config_path.read_text())
         print(f"Loaded existing config with {len(existing)} locations")
 
-    # ── Optionally load lane-seg model ────────────────────────────
     lane_model = None
     if not args.no_auto and not args.no_lane_seg:
         lane_model = load_lane_seg_model(LANE_SEG_WEIGHTS)
 
-    # ── Process each location ─────────────────────────────────────
     for loc_id, loc_dir in locations:
         loc_name = f"location_{loc_id}"
         print(f"\n{'─' * 40}")
         print(f"Processing {loc_name}")
         print(f"{'─' * 40}")
 
-        # Pick annotation image
         img_path = pick_annotation_image(loc_dir)
         if img_path is None:
             print(f"  No images found in {loc_name}, skipping")
@@ -533,13 +514,10 @@ def main():
 
         print(f"  Image: {img_path.name} ({img_w}x{img_h})")
 
-        # ── Auto-suggest ──────────────────────────────────────────
         if args.no_auto:
             suggested_poly = np.empty((0, 2), dtype=np.int32)
         else:
             suggested_poly = autosuggest_from_labels(loc_dir, img_w, img_h)
-
-            # Refine with lane-seg
             if lane_model is not None and len(suggested_poly) >= 3:
                 suggested_poly = refine_polygon_with_lane_seg(
                     lane_model, loc_dir, suggested_poly, img_w, img_h
@@ -550,7 +528,6 @@ def main():
         else:
             print("  No auto-suggestion available — draw manually")
 
-        # ── Interactive annotation ────────────────────────────────
         annotator = ROIAnnotator(cv_img, suggested_poly, title=loc_name)
         result = annotator.run()
 
@@ -565,7 +542,6 @@ def main():
         existing[loc_name] = {"polygon": result, "image_size": [img_w, img_h]}
         print(f"  {loc_name}: saved {len(result)} vertices")
 
-    # ── Save ──────────────────────────────────────────────────────
     out = save_road_roi(existing, config_path)
     n_defined = sum(1 for v in existing.values() if v.get("polygon"))
     print(f"\nSaved {n_defined} ROI polygon(s) to {out}")
