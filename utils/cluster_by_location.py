@@ -64,9 +64,9 @@ CLIP_MODEL = "ViT-B/32"
 PCA_COMPONENTS = 50
 K_RANGE = range(2, 16)
 PREVIEW_SAMPLES = 5
-TILES_PER_FRAME = 3  # number of tiles to average per frame
-STRUCTURAL_WEIGHT = 0.3  # blend weight for structural features (0..1)
-EDGE_HIST_BINS = 36  # bins for Canny edge orientation histogram
+TILES_PER_FRAME = 3
+STRUCTURAL_WEIGHT = 0.3 
+EDGE_HIST_BINS = 36
 
 
 def select_device(preferred: str) -> str:
@@ -87,15 +87,12 @@ def apply_clahe(pil_img: Image.Image) -> Image.Image:
     color space to preserve hue in color images.
     """
     arr = np.array(pil_img)
-
-    # Grayscale image
     if len(arr.shape) == 2 or (len(arr.shape) == 3 and arr.shape[2] == 1):
         gray = arr if len(arr.shape) == 2 else arr[:, :, 0]
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
         enhanced = clahe.apply(gray)
         return Image.fromarray(cv2.cvtColor(enhanced, cv2.COLOR_GRAY2RGB))
 
-    # Color image: enhance L channel in LAB space
     lab = cv2.cvtColor(arr, cv2.COLOR_RGB2LAB)
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     lab[:, :, 0] = clahe.apply(lab[:, :, 0])
@@ -121,21 +118,17 @@ def extract_structural_features(img_path: Path) -> np.ndarray:
         logger.warning("Failed to read image: %s (returning zero vector)", img_path)
         return np.zeros(EDGE_HIST_BINS + 16 + 3)
 
-    # Convert to grayscale for structural analysis
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape
 
-    # Apply CLAHE to normalize brightness
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     gray = clahe.apply(gray)
 
-    # --- 1. Edge orientation histogram ---
     sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
     sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
     magnitude = np.sqrt(sobelx**2 + sobely**2)
-    orientation = np.arctan2(sobely, sobelx)  # -pi to pi
+    orientation = np.arctan2(sobely, sobelx)
 
-    # Only consider significant edges (top 30% by magnitude)
     threshold = np.percentile(magnitude, 70)
     mask = magnitude > threshold
     if mask.sum() > 0:
@@ -149,7 +142,6 @@ def extract_structural_features(img_path: Path) -> np.ndarray:
     else:
         edge_hist = np.zeros(EDGE_HIST_BINS)
 
-    # --- 2. Spatial edge density (4x4 grid) ---
     edges = cv2.Canny(gray, 50, 150)
     grid_h, grid_w = 4, 4
     cell_h, cell_w = h // grid_h, w // grid_w
@@ -159,7 +151,6 @@ def extract_structural_features(img_path: Path) -> np.ndarray:
             cell = edges[r * cell_h : (r + 1) * cell_h, c * cell_w : (c + 1) * cell_w]
             spatial_density[r * grid_w + c] = cell.mean() / 255.0
 
-    # --- 3. Resolution fingerprint ---
     max_dim = max(w, h)
     res_feat = np.array([w / max_dim, h / max_dim, w / (h + 1e-8)])
 
@@ -201,15 +192,14 @@ def extract_clip_embeddings(
       - Multi-tile averaging per frame for robustness
       - Horizontal flip augmentation for viewpoint consistency
     """
-    # Collect all tiles to process (multiple per frame)
-    tile_items = []  # (ts_index, tile_dict)
+    tile_items = []
     for ts_idx, ts in enumerate(ts_list):
         reps = pick_representatives(frames[ts], tiles_per_frame)
         for rep in reps:
             tile_items.append((ts_idx, rep))
 
     total_tiles = len(tile_items)
-    embed_dim = model.visual.output_dim  # derive from model (e.g. 512 for ViT-B/32)
+    embed_dim = model.visual.output_dim
     all_features = np.zeros((total_tiles, embed_dim), dtype=np.float32)
 
     for i in range(0, total_tiles, batch_size):
@@ -224,16 +214,14 @@ def extract_clip_embeddings(
             except Exception as e:
                 logger.warning("Failed to open %s: %s (skipping tile)", item["path"], e)
                 skipped.append(batch_idx)
-                # Append placeholder tensors (will be zeroed out below)
                 images_orig.append(preprocess(Image.new("RGB", (224, 224))))
                 images_flip.append(preprocess(Image.new("RGB", (224, 224))))
                 continue
-            img = apply_clahe(img)  # CLAHE enhancement
+            img = apply_clahe(img)
 
             images_orig.append(preprocess(img))
             images_flip.append(preprocess(img.transpose(Image.FLIP_LEFT_RIGHT)))
 
-        # Encode original + flipped, average for viewpoint robustness
         orig_tensor = torch.stack(images_orig).to(device)
         flip_tensor = torch.stack(images_flip).to(device)
 
@@ -241,9 +229,7 @@ def extract_clip_embeddings(
             feat_orig = model.encode_image(orig_tensor).cpu().numpy()
             feat_flip = model.encode_image(flip_tensor).cpu().numpy()
 
-        # Average original and flipped embeddings
         feat_avg = (feat_orig + feat_flip) / 2.0
-        # Zero out skipped (corrupt) tiles
         for s in skipped:
             feat_avg[s] = 0.0
         all_features[i : i + len(batch)] = feat_avg
@@ -253,7 +239,6 @@ def extract_clip_embeddings(
 
     print()
 
-    # Average embeddings per frame
     n_frames = len(ts_list)
     frame_embeddings = np.zeros((n_frames, embed_dim), dtype=np.float32)
     counts = np.zeros(n_frames, dtype=np.int32)
@@ -443,7 +428,6 @@ def main():
     )
     args = parser.parse_args()
 
-    # ── Banner ──
     print("=" * 60)
     print("CCTV Image Clustering by Location")
     print("(CLIP + Structural Features, IR-Optimized)")
