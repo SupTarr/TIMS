@@ -41,12 +41,8 @@ logger = logging.getLogger(__name__)
 # Paths
 # ──────────────────────────────────────────────────────────────────────
 OUTPUT_DIR = BASE_DIR / "train"
-
-# Max dimension for downscaled mask computation (saves memory + time)
 MAX_MASK_DIM = 640
-
-# Vehicle class IDs (1-based, matching classes.txt).  Excludes 14=pedestrian.
-VEHICLE_CLASSES: set[int] = set(range(1, 14))  # {1, 2, ..., 13}
+VEHICLE_CLASSES: set[int] = set(range(1, 14))
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -119,14 +115,10 @@ def compute_density_percentage(
     if len(boxes) == 0:
         return 0.0
 
-    # Compute scale factor for downscaled masks
     scale = min(MAX_MASK_DIM / max(img_w, img_h), 1.0)
     sw, sh = int(img_w * scale), int(img_h * scale)
 
-    # Scale ROI polygon
     scaled_roi = (roi_polygon * scale).astype(np.int32)
-
-    # Create ROI mask
     roi_mask = np.zeros((sh, sw), dtype=np.uint8)
     cv2.fillPoly(roi_mask, [scaled_roi], 1)
     roi_area = np.count_nonzero(roi_mask)
@@ -134,23 +126,18 @@ def compute_density_percentage(
     if roi_area == 0:
         return 0.0
 
-    # Create bbox union mask
     bbox_mask = np.zeros((sh, sw), dtype=np.uint8)
     for cx, cy, w, h in boxes:
-        # Convert normalised YOLO to pixel coords (scaled)
         x1 = int((cx - w / 2) * img_w * scale)
         y1 = int((cy - h / 2) * img_h * scale)
         x2 = int((cx + w / 2) * img_w * scale)
         y2 = int((cy + h / 2) * img_h * scale)
-        # Clamp to mask bounds
         x1, y1 = max(0, x1), max(0, y1)
         x2, y2 = min(sw, x2), min(sh, y2)
         if x2 > x1 and y2 > y1:
             bbox_mask[y1:y2, x1:x2] = 1
 
-    # Intersection: pixels that are both in ROI and in any bbox
     intersection = np.count_nonzero(roi_mask & bbox_mask)
-
     return (intersection / roi_area) * 100.0
 
 
@@ -172,16 +159,13 @@ def classify_density(
         sys.exit(1)
 
     logger.info("Found %d locations", len(locations))
-
-    # Prepare output directories
     if not dry_run and not histogram:
         for cls in DENSITY_CLASSES:
             (OUTPUT_DIR / cls).mkdir(parents=True, exist_ok=True)
 
-    # Accumulate statistics
     stats: dict[str, int] = {cls: 0 for cls in DENSITY_CLASSES}
     location_stats: dict[str, dict[str, int]] = {}
-    all_percentages: list[dict] = []  # for histogram / CSV export
+    all_percentages: list[dict] = []
 
     for loc_id, loc_dir in locations:
         loc_name = f"location_{loc_id}"
@@ -250,13 +234,11 @@ def classify_density(
             loc_counts["full"],
         )
 
-    # ── Histogram mode ───────────────────────────────────────────
     if histogram:
         _print_histogram(all_percentages)
         _export_csv(all_percentages)
         return
 
-    # ── Summary ──────────────────────────────────────────────────────
     total = sum(stats.values())
     prefix = "DRY RUN — " if dry_run else ""
     print(f"\n{'=' * 60}")
@@ -316,14 +298,12 @@ def _print_histogram(records: list[dict], bin_width: int = 5) -> None:
         pct_of_total = cnt / len(pcts) * 100 if pcts else 0
         print(f"  [{lo:5.0f}-{hi:5.0f}%) {cnt:5d} ({pct_of_total:5.1f}%) {bar}")
 
-    # Show current threshold markers
     print(
         f"\n  Current thresholds: "
         f"empty=0% | light<8% | medium<25% | high<50% | full≥50%"
     )
     print()
 
-    # Percentile summary for threshold calibration
     sorted_pcts = sorted(pcts)
     for q in (10, 25, 50, 75, 90, 95, 99):
         idx = min(int(len(sorted_pcts) * q / 100), len(sorted_pcts) - 1)

@@ -36,8 +36,6 @@ logger = logging.getLogger(__name__)
 # Paths
 # ──────────────────────────────────────────────────────────────────────
 OUTPUT_DIR = BASE_DIR / "train"
-
-# Max dimension for downscaled mask computation (saves memory + time)
 MAX_MASK_DIM = 640
 
 
@@ -101,14 +99,10 @@ def compute_density_percentage(
     if len(boxes) == 0:
         return 0.0
 
-    # Compute scale factor for downscaled masks
     scale = min(MAX_MASK_DIM / max(img_w, img_h), 1.0)
     sw, sh = int(img_w * scale), int(img_h * scale)
 
-    # Scale ROI polygon
     scaled_roi = (roi_polygon * scale).astype(np.int32)
-
-    # Create ROI mask
     roi_mask = np.zeros((sh, sw), dtype=np.uint8)
     cv2.fillPoly(roi_mask, [scaled_roi], 1)
     roi_area = np.count_nonzero(roi_mask)
@@ -116,23 +110,18 @@ def compute_density_percentage(
     if roi_area == 0:
         return 0.0
 
-    # Create bbox union mask
     bbox_mask = np.zeros((sh, sw), dtype=np.uint8)
     for cx, cy, w, h in boxes:
-        # Convert normalised YOLO to pixel coords (scaled)
         x1 = int((cx - w / 2) * img_w * scale)
         y1 = int((cy - h / 2) * img_h * scale)
         x2 = int((cx + w / 2) * img_w * scale)
         y2 = int((cy + h / 2) * img_h * scale)
-        # Clamp to mask bounds
         x1, y1 = max(0, x1), max(0, y1)
         x2, y2 = min(sw, x2), min(sh, y2)
         if x2 > x1 and y2 > y1:
             bbox_mask[y1:y2, x1:x2] = 1
 
-    # Intersection: pixels that are both in ROI and in any bbox
     intersection = np.count_nonzero(roi_mask & bbox_mask)
-
     return (intersection / roi_area) * 100.0
 
 
@@ -152,13 +141,10 @@ def classify_density(dry_run: bool = False, verbose: bool = False) -> None:
         sys.exit(1)
 
     logger.info("Found %d locations", len(locations))
-
-    # Prepare output directories
     if not dry_run:
         for cls in DENSITY_CLASSES:
             (OUTPUT_DIR / cls).mkdir(parents=True, exist_ok=True)
 
-    # Accumulate statistics
     stats: dict[str, int] = {cls: 0 for cls in DENSITY_CLASSES}
     location_stats: dict[str, dict[str, int]] = {}
 
@@ -218,7 +204,6 @@ def classify_density(dry_run: bool = False, verbose: bool = False) -> None:
             loc_counts["full"],
         )
 
-    # ── Summary ──────────────────────────────────────────────────────
     total = sum(stats.values())
     prefix = "DRY RUN — " if dry_run else ""
     print(f"\n{'=' * 60}")
