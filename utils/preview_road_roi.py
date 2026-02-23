@@ -34,9 +34,9 @@ from common import (
 # ──────────────────────────────────────────────────────────────────────
 # Configuration
 # ──────────────────────────────────────────────────────────────────────
-PREVIEW_SAMPLES = 3  # images per location row
+PREVIEW_SAMPLES = 3
 OVERLAY_ALPHA = 0.30
-POLY_COLOR_RGB = (0, 200, 0)  # green for matplotlib (RGB)
+POLY_COLOR_RGB = (0, 200, 0)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -55,12 +55,12 @@ def overlay_roi(img_rgb: np.ndarray, polygon: np.ndarray) -> np.ndarray:
     vis = img_rgb.copy()
     if len(polygon) < 3:
         return vis
-    # matplotlib uses RGB; cv2 fillPoly expects BGR but we work in RGB here
+
     overlay = vis.copy()
     cv2.fillPoly(overlay, [polygon], POLY_COLOR_RGB)
     cv2.addWeighted(overlay, OVERLAY_ALPHA, vis, 1 - OVERLAY_ALPHA, 0, vis)
     cv2.polylines(vis, [polygon], True, POLY_COLOR_RGB, 2, cv2.LINE_AA)
-    # Draw vertex dots
+
     for pt in polygon:
         cv2.circle(vis, tuple(pt), 5, (255, 0, 0), -1, cv2.LINE_AA)
     return vis
@@ -103,7 +103,6 @@ def main():
     print("Road ROI Preview Generator")
     print("=" * 60)
 
-    # Load ROI config
     try:
         roi_map = load_road_roi(config_path)
     except FileNotFoundError:
@@ -113,7 +112,6 @@ def main():
 
     print(f"Loaded {len(roi_map)} ROI polygon(s) from {config_path}")
 
-    # Discover locations
     locations = discover_locations()
     n_locs = len(locations)
     if n_locs == 0:
@@ -122,7 +120,6 @@ def main():
 
     print(f"Found {n_locs} locations")
 
-    # Build grid: one row per location, n_samples columns
     fig, axes = plt.subplots(
         n_locs, n_samples, figsize=(4 * n_samples, 3 * n_locs), squeeze=False
     )
@@ -133,7 +130,6 @@ def main():
         polygon = roi_map.get(loc_name, np.empty((0, 2), dtype=np.int32))
         has_roi = len(polygon) >= 3
 
-        # Group frames from images/ subdir
         images_dir = loc_dir / "images"
         frames = group_tiles_by_frame(images_dir)
         sampled_ts = pick_sample_frames(frames, n_samples)
