@@ -28,6 +28,7 @@ Controls (interactive window):
 import argparse
 import json
 import logging
+import random
 import sys
 from pathlib import Path
 from typing import Optional
@@ -404,7 +405,7 @@ def preview_existing(config_path: Path):
 # Pick a good representative image for annotation
 # ──────────────────────────────────────────────────────────────────────
 def pick_annotation_image(loc_dir: Path) -> Optional[Path]:
-    """Pick a daytime image (if available) for clearest annotation."""
+    """Pick a random daytime image (if available) for clearest annotation."""
     images_dir = loc_dir / "images"
     all_imgs = sorted(images_dir.glob("*.jpg"))
     if not all_imgs:
@@ -415,8 +416,8 @@ def pick_annotation_image(loc_dir: Path) -> Optional[Path]:
             p for p in all_imgs if time_period(p.name.split("-")[1][:6]) == period_pref
         ]
         if candidates:
-            return candidates[len(candidates) // 2]
-    return all_imgs[len(all_imgs) // 2]
+            return random.choice(candidates)
+    return random.choice(all_imgs)
 
 
 # ──────────────────────────────────────────────────────────────────────
