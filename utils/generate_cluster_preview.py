@@ -184,14 +184,10 @@ def main():
         help="Output path (default: train_by_location/cluster_preview.png)",
     )
     parser.add_argument(
-        "--no-roi",
-        action="store_true",
-        help="Skip drawing ROI polygon overlay",
+        "--no-roi", action="store_true", help="Skip drawing ROI polygon overlay"
     )
     parser.add_argument(
-        "--no-boxes",
-        action="store_true",
-        help="Skip drawing YOLO bounding boxes",
+        "--no-boxes", action="store_true", help="Skip drawing YOLO bounding boxes"
     )
     args = parser.parse_args()
 
@@ -216,7 +212,9 @@ def main():
             roi_map = load_road_roi(ROI_CONFIG_PATH)
             print(f"Loaded {len(roi_map)} ROI polygon(s) from {ROI_CONFIG_PATH}")
         except FileNotFoundError:
-            print(f"WARNING: ROI config not found ({ROI_CONFIG_PATH}), skipping ROI overlay")
+            print(
+                f"WARNING: ROI config not found ({ROI_CONFIG_PATH}), skipping ROI overlay"
+            )
 
     locations = discover_locations(BASE_DIR)
     n_clusters = len(locations)
@@ -246,9 +244,7 @@ def main():
         n_clusters, n_samples, figsize=(4 * n_samples, 3 * n_clusters), squeeze=False
     )
     fig.suptitle(
-        "Cluster Preview – ROI + Detections (rows = locations)",
-        fontsize=14,
-        y=1.01,
+        "Cluster Preview – ROI + Detections (rows = locations)", fontsize=14, y=1.01
     )
 
     for row_idx, (loc_id, _) in enumerate(locations):

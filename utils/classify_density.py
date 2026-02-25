@@ -30,7 +30,12 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from common import DENSITY_OUTPUT_PATH as OUTPUT_DIR, ROI_CONFIG_PATH, TRAIN_BY_LOCATION_PATH, discover_locations
+from common import (
+    DENSITY_OUTPUT_PATH as OUTPUT_DIR,
+    ROI_CONFIG_PATH,
+    TRAIN_BY_LOCATION_PATH,
+    discover_locations,
+)
 
 logger = logging.getLogger(__name__)
 MAX_MASK_DIM = 640
@@ -279,10 +284,7 @@ def _print_histogram(records: list[dict], bin_width: int = 5) -> None:
         pct_of_total = cnt / len(pcts) * 100 if pcts else 0
         print(f"  [{lo:5.0f}-{hi:5.0f}%) {cnt:5d} ({pct_of_total:5.1f}%) {bar}")
 
-    print(
-        f"\n  Current thresholds: "
-        f"light<40% | medium<65% | high<90% | full≥90%"
-    )
+    print(f"\n  Current thresholds: " f"light<40% | medium<65% | high<90% | full≥90%")
     print()
 
     sorted_pcts = sorted(pcts)
@@ -357,12 +359,8 @@ def _describe_distribution(records: list[dict]) -> None:
         cnt = class_counts.get(cls, 0)
         pct = cnt / n * 100
         print(f"    {cls:>8s}: {cnt:5d} ({pct:5.1f}%)")
-    print(
-        f"\n  Busiest location:  {busiest} (avg density {loc_avg[busiest]:.1f}%)"
-    )
-    print(
-        f"  Quietest location: {quietest} (avg density {loc_avg[quietest]:.1f}%)"
-    )
+    print(f"\n  Busiest location:  {busiest} (avg density {loc_avg[busiest]:.1f}%)")
+    print(f"  Quietest location: {quietest} (avg density {loc_avg[quietest]:.1f}%)")
     print()
 
 

@@ -20,11 +20,7 @@ import numpy as np
 PROJECT_ROOT_PATH = Path(__file__).resolve().parent.parent
 
 DENSITY_BASE_PATH = (
-    PROJECT_ROOT_PATH
-    / "gdrive"
-    / "YOLOv10"
-    / "data_train"
-    / "TIMS_density_dataset"
+    PROJECT_ROOT_PATH / "gdrive" / "YOLOv10" / "data_train" / "TIMS_density_dataset"
 )
 
 RAW_TRAIN_PATH = DENSITY_BASE_PATH / "raw" / "train"
@@ -32,7 +28,7 @@ TRAIN_BY_LOCATION_PATH = DENSITY_BASE_PATH / "raw" / "train_by_location"
 
 ROI_CONFIG_PATH = TRAIN_BY_LOCATION_PATH / "road_roi.json"
 CLUSTER_PREVIEW_PATH = TRAIN_BY_LOCATION_PATH / "cluster_preview.png"
-CLUSTER_CSV_PATH = TRAIN_BY_LOCATION_PATH    / "cluster_mapping.csv"
+CLUSTER_CSV_PATH = TRAIN_BY_LOCATION_PATH / "cluster_mapping.csv"
 
 DENSITY_OUTPUT_PATH = DENSITY_BASE_PATH / "train"
 
@@ -45,15 +41,9 @@ TIMS_FINAL_BASE_PATH = (
     / "train_original"
 )
 
-TIMS_FINAL_IMAGES_PATH = (
-    TIMS_FINAL_BASE_PATH
-    / "images"
-)
+TIMS_FINAL_IMAGES_PATH = TIMS_FINAL_BASE_PATH / "images"
 
-TIMS_FINAL_LABELS_PATH = (
-    TIMS_FINAL_BASE_PATH
-    / "labels"
-)
+TIMS_FINAL_LABELS_PATH = TIMS_FINAL_BASE_PATH / "labels"
 
 LANE_SEG_WEIGHTS_PATH = (
     PROJECT_ROOT_PATH

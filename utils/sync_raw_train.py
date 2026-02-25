@@ -29,10 +29,7 @@ def main():
     )
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(message)s",
-    )
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     logger = logging.getLogger(__name__)
 
     if not TRAIN_BY_LOCATION_PATH.exists():
@@ -54,11 +51,17 @@ def main():
                 img_dir = loc_dir
 
             for img_path in img_dir.glob("*"):
-                if img_path.is_file() and img_path.suffix.lower() in [".jpg", ".jpeg", ".png"]:
+                if img_path.is_file() and img_path.suffix.lower() in [
+                    ".jpg",
+                    ".jpeg",
+                    ".png",
+                ]:
                     valid_filenames.add(img_path.name)
 
     if not valid_filenames:
-        logger.warning("No images found in train_by_location! Aborting to prevent deleting all files.")
+        logger.warning(
+            "No images found in train_by_location! Aborting to prevent deleting all files."
+        )
         return
 
     logger.info(f"Found {len(valid_filenames)} valid images in train_by_location.")
@@ -79,7 +82,10 @@ def main():
             else:
                 kept_count += 1
 
-    logger.info(f"\nSync complete. Deleted {deleted_count} files. Kept {kept_count} files.")
+    logger.info(
+        f"\nSync complete. Deleted {deleted_count} files. Kept {kept_count} files."
+    )
+
 
 if __name__ == "__main__":
     main()
