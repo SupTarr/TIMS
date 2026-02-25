@@ -34,7 +34,7 @@ from common import (
 # ──────────────────────────────────────────────────────────────────────
 # Configuration
 # ──────────────────────────────────────────────────────────────────────
-PREVIEW_SAMPLES = 3
+PREVIEW_SAMPLES = 5
 OVERLAY_ALPHA = 0.30
 POLY_COLOR_RGB = (0, 200, 0)
 
@@ -89,7 +89,7 @@ def main():
         "--samples",
         type=int,
         default=PREVIEW_SAMPLES,
-        help="Number of sample images per location (default: 3)",
+        help="Number of sample images per location (default: 5)",
     )
     args = parser.parse_args()
 
