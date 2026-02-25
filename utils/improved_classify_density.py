@@ -236,6 +236,7 @@ def classify_density(
 
     if histogram:
         _print_histogram(all_percentages)
+        _describe_distribution(all_percentages)
         _export_csv(all_percentages)
         return
 
@@ -321,6 +322,85 @@ def _export_csv(records: list[dict]) -> None:
         writer.writeheader()
         writer.writerows(records)
     print(f"\nCSV exported to: {csv_path}")
+
+
+def _describe_distribution(records: list[dict]) -> None:
+    """Print a human-readable narrative description of the density distribution."""
+    pcts = [r["density_pct"] for r in records]
+    if not pcts:
+        return
+
+    n = len(pcts)
+    mean = sum(pcts) / n
+    sorted_pcts = sorted(pcts)
+    median = sorted_pcts[n // 2]
+    std = (sum((x - mean) ** 2 for x in pcts) / n) ** 0.5
+    q1 = sorted_pcts[n // 4]
+    q3 = sorted_pcts[3 * n // 4]
+    iqr = q3 - q1
+
+    # Class breakdown
+    class_counts: dict[str, int] = {}
+    for r in records:
+        cls = r["class"]
+        class_counts[cls] = class_counts.get(cls, 0) + 1
+
+    dominant_class = max(class_counts, key=class_counts.get)  # type: ignore[arg-type]
+    dominant_pct = class_counts[dominant_class] / n * 100
+
+    # Per-location variation
+    loc_means: dict[str, list[float]] = {}
+    for r in records:
+        loc_means.setdefault(r["location"], []).append(r["density_pct"])
+    loc_avg = {k: sum(v) / len(v) for k, v in loc_means.items()}
+    busiest = max(loc_avg, key=loc_avg.get)  # type: ignore[arg-type]
+    quietest = min(loc_avg, key=loc_avg.get)  # type: ignore[arg-type]
+
+    # Skewness description
+    if mean > median * 1.15:
+        skew_desc = "right-skewed (long tail towards high density)"
+    elif median > mean * 1.15:
+        skew_desc = "left-skewed (long tail towards low density)"
+    else:
+        skew_desc = "approximately symmetric"
+
+    # Spread description
+    if std < 5:
+        spread_desc = "very tight"
+    elif std < 15:
+        spread_desc = "moderate"
+    elif std < 30:
+        spread_desc = "wide"
+    else:
+        spread_desc = "very wide"
+
+    print(f"\n{'=' * 70}")
+    print("Distribution Description")
+    print(f"{'=' * 70}")
+    print(f"\n  The dataset contains {n} images across {len(loc_means)} locations.")
+    print(
+        f"  Density percentages range from {sorted_pcts[0]:.1f}% to "
+        f"{sorted_pcts[-1]:.1f}% with a mean of {mean:.1f}% "
+        f"(median {median:.1f}%, std {std:.1f}%)."
+    )
+    print(f"  The distribution is {skew_desc} with a {spread_desc} spread.")
+    print(f"  The interquartile range (Q1\u2013Q3) is {q1:.1f}%\u2013{q3:.1f}% (IQR={iqr:.1f}%).")
+    print(
+        f"\n  The dominant class is '{dominant_class}' with "
+        f"{class_counts[dominant_class]} images ({dominant_pct:.1f}% of total)."
+    )
+    print(f"  Class breakdown:")
+    for cls in DENSITY_CLASSES:
+        cnt = class_counts.get(cls, 0)
+        pct = cnt / n * 100
+        print(f"    {cls:>8s}: {cnt:5d} ({pct:5.1f}%)")
+    print(
+        f"\n  Busiest location:  {busiest} (avg density {loc_avg[busiest]:.1f}%)"
+    )
+    print(
+        f"  Quietest location: {quietest} (avg density {loc_avg[quietest]:.1f}%)"
+    )
+    print()
 
 
 # ──────────────────────────────────────────────────────────────────────
