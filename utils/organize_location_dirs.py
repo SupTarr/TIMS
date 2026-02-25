@@ -77,8 +77,16 @@ def organize():
                 missing += 1
                 print(f"  WARNING: No label for {jpg.name}")
 
+        image_stems = {p.stem for p in images_dir.iterdir() if p.is_file()}
+        orphans = 0
+        for label_file in list(labels_dir.glob("*.txt")):
+            if label_file.stem not in image_stems:
+                label_file.unlink()
+                orphans += 1
+
         print(
-            f"{loc_dir.name}: {moved} images moved, {copied} labels copied, {missing} missing labels"
+            f"{loc_dir.name}: {moved} images moved, {copied} labels copied, "
+            f"{missing} missing labels, {orphans} orphan labels removed"
         )
         total_moved += moved
         total_copied += copied
