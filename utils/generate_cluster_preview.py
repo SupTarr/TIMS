@@ -27,7 +27,6 @@ from PIL import Image
 
 from common import (
     BASE_DIR as _TIMS_BASE,
-    TRAIN_BY_LOCATION,
     ROI_CONFIG,
     group_tiles_by_frame,
     load_road_roi,

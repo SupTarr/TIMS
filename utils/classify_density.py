@@ -311,24 +311,21 @@ def _describe_distribution(records: list[dict]) -> None:
     q3 = sorted_pcts[3 * n // 4]
     iqr = q3 - q1
 
-    # Class breakdown
     class_counts: dict[str, int] = {}
     for r in records:
         cls = r["class"]
         class_counts[cls] = class_counts.get(cls, 0) + 1
 
-    dominant_class = max(class_counts, key=class_counts.get)  # type: ignore[arg-type]
+    dominant_class = max(class_counts, key=class_counts.get)
     dominant_pct = class_counts[dominant_class] / n * 100
 
-    # Per-location variation
     loc_means: dict[str, list[float]] = {}
     for r in records:
         loc_means.setdefault(r["location"], []).append(r["density_pct"])
     loc_avg = {k: sum(v) / len(v) for k, v in loc_means.items()}
-    busiest = max(loc_avg, key=loc_avg.get)  # type: ignore[arg-type]
-    quietest = min(loc_avg, key=loc_avg.get)  # type: ignore[arg-type]
+    busiest = max(loc_avg, key=loc_avg.get)
+    quietest = min(loc_avg, key=loc_avg.get)
 
-    # Skewness description
     if mean > median * 1.15:
         skew_desc = "right-skewed (long tail towards high density)"
     elif median > mean * 1.15:
@@ -336,7 +333,6 @@ def _describe_distribution(records: list[dict]) -> None:
     else:
         skew_desc = "approximately symmetric"
 
-    # Spread description
     if std < 5:
         spread_desc = "very tight"
     elif std < 15:
