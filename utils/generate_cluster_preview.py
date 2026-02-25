@@ -96,7 +96,11 @@ def main():
 
     loc_data = {}
     for loc_id, loc_dir in locations:
-        frames = group_tiles_by_frame(loc_dir)
+        src_dir = loc_dir / "images"
+        if not src_dir.is_dir():
+            src_dir = loc_dir
+
+        frames = group_tiles_by_frame(src_dir)
         n_frames = len(frames)
         n_tiles = sum(len(v) for v in frames.values())
         loc_data[loc_id] = {"frames": frames, "n_frames": n_frames, "n_tiles": n_tiles}
