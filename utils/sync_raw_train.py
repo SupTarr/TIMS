@@ -14,24 +14,8 @@ Usage:
 
 import argparse
 import logging
-import sys
-from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent))
-
-try:
-    from common import BASE_DIR
-except ImportError:
-    BASE_DIR = (
-        Path(__file__).resolve().parent.parent
-        / "gdrive"
-        / "YOLOv10"
-        / "data_train"
-        / "TIMS_density_dataset"
-    )
-
-TRAIN_BY_LOCATION = BASE_DIR / "raw" / "train_by_location"
-RAW_TRAIN = BASE_DIR / "raw" / "train"
+from common import RAW_TRAIN_PATH, TRAIN_BY_LOCATION_PATH
 
 
 def main():
@@ -51,19 +35,19 @@ def main():
     )
     logger = logging.getLogger(__name__)
 
-    if not TRAIN_BY_LOCATION.exists():
-        logger.error(f"Source directory not found: {TRAIN_BY_LOCATION}")
+    if not TRAIN_BY_LOCATION_PATH.exists():
+        logger.error(f"Source directory not found: {TRAIN_BY_LOCATION_PATH}")
         return
 
-    if not RAW_TRAIN.exists():
-        logger.error(f"Target directory not found: {RAW_TRAIN}")
+    if not RAW_TRAIN_PATH.exists():
+        logger.error(f"Target directory not found: {RAW_TRAIN_PATH}")
         return
 
-    logger.info(f"Scanning {TRAIN_BY_LOCATION}...")
+    logger.info(f"Scanning {TRAIN_BY_LOCATION_PATH}...")
 
     valid_filenames = set()
 
-    for loc_dir in TRAIN_BY_LOCATION.iterdir():
+    for loc_dir in TRAIN_BY_LOCATION_PATH.iterdir():
         if loc_dir.is_dir() and loc_dir.name.startswith("location_"):
             img_dir = loc_dir / "images"
             if not img_dir.is_dir():
@@ -79,11 +63,11 @@ def main():
 
     logger.info(f"Found {len(valid_filenames)} valid images in train_by_location.")
 
-    logger.info(f"Scanning {RAW_TRAIN}...")
+    logger.info(f"Scanning {RAW_TRAIN_PATH}...")
     deleted_count = 0
     kept_count = 0
 
-    for img_path in RAW_TRAIN.glob("*"):
+    for img_path in RAW_TRAIN_PATH.glob("*"):
         if img_path.is_file() and img_path.suffix.lower() in [".jpg", ".jpeg", ".png"]:
             if img_path.name not in valid_filenames:
                 if args.dry_run:

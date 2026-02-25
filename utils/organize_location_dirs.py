@@ -8,37 +8,18 @@ For each location_N folder:
 """
 
 import shutil
-from pathlib import Path
 
-BASE = Path(__file__).resolve().parent.parent
-TRAIN_BY_LOCATION = (
-    BASE
-    / "gdrive"
-    / "YOLOv10"
-    / "data_train"
-    / "TIMS_density_dataset"
-    / "raw"
-    / "train_by_location"
-)
-LABELS_SOURCE = (
-    BASE
-    / "gdrive"
-    / "YOLOv10"
-    / "data_train"
-    / "TIMS_dataset_final"
-    / "train_original"
-    / "labels"
-)
+from common import TIMS_FINAL_LABELS_PATH, TRAIN_BY_LOCATION_PATH
 
 
 def organize():
-    assert TRAIN_BY_LOCATION.is_dir(), f"Not found: {TRAIN_BY_LOCATION}"
-    assert LABELS_SOURCE.is_dir(), f"Not found: {LABELS_SOURCE}"
+    assert TRAIN_BY_LOCATION_PATH.is_dir(), f"Not found: {TRAIN_BY_LOCATION_PATH}"
+    assert TIMS_FINAL_LABELS_PATH.is_dir(), f"Not found: {TIMS_FINAL_LABELS_PATH}"
 
     location_dirs = sorted(
         [
             d
-            for d in TRAIN_BY_LOCATION.iterdir()
+            for d in TRAIN_BY_LOCATION_PATH.iterdir()
             if d.is_dir() and d.name.startswith("location_")
         ],
         key=lambda p: int(p.name.split("_")[1]),
@@ -69,7 +50,7 @@ def organize():
             moved += 1
 
             label_name = jpg.stem + ".txt"
-            src_label = LABELS_SOURCE / label_name
+            src_label = TIMS_FINAL_LABELS_PATH / label_name
             if src_label.exists():
                 shutil.copy2(str(src_label), str(labels_dir / label_name))
                 copied += 1

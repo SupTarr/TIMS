@@ -38,21 +38,19 @@ import numpy as np
 from PIL import Image
 from sklearn.neighbors import KernelDensity
 
-from common import BASE_DIR, ROI_CONFIG, discover_locations, save_road_roi, time_period
+from common import (
+    LANE_SEG_WEIGHTS_PATH,
+    ROI_CONFIG_PATH,
+    discover_locations,
+    save_road_roi,
+    time_period,
+)
 
 logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────────────
 # Configuration
 # ──────────────────────────────────────────────────────────────────────
-LANE_SEG_WEIGHTS = (
-    BASE_DIR.parent.parent
-    / "weights"
-    / "pre-final"
-    / "best_lane_seg_capstone"
-    / "weights"
-    / "best.pt"
-)
 
 KDE_BANDWIDTH = 80
 HEATMAP_THRESHOLD = 0.25
@@ -454,11 +452,11 @@ def main():
         "--output",
         type=str,
         default=None,
-        help=f"Output JSON path (default: {ROI_CONFIG})",
+        help=f"Output JSON path (default: {ROI_CONFIG_PATH})",
     )
     args = parser.parse_args()
 
-    config_path = Path(args.output) if args.output else ROI_CONFIG
+    config_path = Path(args.output) if args.output else ROI_CONFIG_PATH
 
     if args.preview_only:
         preview_existing(config_path)
@@ -487,7 +485,7 @@ def main():
 
     lane_model = None
     if not args.no_auto and not args.no_lane_seg:
-        lane_model = load_lane_seg_model(LANE_SEG_WEIGHTS)
+        lane_model = load_lane_seg_model(LANE_SEG_WEIGHTS_PATH)
 
     for loc_id, loc_dir in locations:
         loc_name = f"location_{loc_id}"

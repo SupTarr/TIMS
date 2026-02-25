@@ -1,20 +1,11 @@
 import os
 import shutil
 import glob
-from pathlib import Path
 
-from common import BASE_DIR, CCTV_PATTERN_LOOSE
+from common import CCTV_PATTERN_LOOSE, TIMS_FINAL_IMAGES_PATH, RAW_TRAIN_PATH
 
-SRC_DIR = str(
-    Path(__file__).resolve().parent.parent
-    / "gdrive"
-    / "YOLOv10"
-    / "data_train"
-    / "TIMS_dataset_final_qwen"
-    / "train_original"
-    / "images"
-)
-DST_DIR = str(BASE_DIR / "raw" / "train")
+SRC_DIR = str(TIMS_FINAL_IMAGES_PATH)
+DST_DIR = str(RAW_TRAIN_PATH)
 
 
 def classify_by_filename(filename):

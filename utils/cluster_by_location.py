@@ -43,7 +43,10 @@ from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import normalize
 
 from common import (
-    BASE_DIR,
+    CLUSTER_CSV_PATH,
+    CLUSTER_PREVIEW_PATH,
+    RAW_TRAIN_PATH as SRC_DIR,
+    TRAIN_BY_LOCATION_PATH as DST_DIR,
     group_tiles_by_frame,
     pick_representative,
     pick_representatives,
@@ -55,10 +58,6 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────────────────
 # Configuration
 # ──────────────────────────────────────────────────────────────────────
-SRC_DIR = BASE_DIR / "raw" / "train"
-DST_DIR = BASE_DIR / "raw" / "train_by_location"
-PREVIEW_PATH = DST_DIR / "cluster_preview.png"
-CSV_PATH = DST_DIR / "cluster_mapping.csv"
 
 CLIP_MODEL = "ViT-B/32"
 PCA_COMPONENTS = 50
@@ -542,8 +541,8 @@ def main():
     total_copied = copy_to_location_folders(frames, ts_to_cluster, DST_DIR)
     print(f"  Copied {total_copied} tiles into {n_clusters} location folders")
 
-    generate_preview(frames, ts_to_cluster, n_clusters, PREVIEW_PATH)
-    write_csv(frames, ts_to_cluster, CSV_PATH)
+    generate_preview(frames, ts_to_cluster, n_clusters, CLUSTER_PREVIEW_PATH)
+    write_csv(frames, ts_to_cluster, CLUSTER_CSV_PATH)
 
     src_count_after = len([f for f in SRC_DIR.iterdir() if f.is_file()])
     print(f"\n{'=' * 60}")

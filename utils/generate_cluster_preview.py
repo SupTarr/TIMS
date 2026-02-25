@@ -26,8 +26,8 @@ import numpy as np
 from PIL import Image
 
 from common import (
-    BASE_DIR as _TIMS_BASE,
-    ROI_CONFIG,
+    TRAIN_BY_LOCATION_PATH as BASE_DIR,
+    ROI_CONFIG_PATH,
     group_tiles_by_frame,
     load_road_roi,
     pick_representative,
@@ -38,7 +38,6 @@ from common import (
 # ──────────────────────────────────────────────────────────────────────
 # Configuration
 # ──────────────────────────────────────────────────────────────────────
-BASE_DIR = _TIMS_BASE / "raw" / "train_by_location"
 
 PREVIEW_SAMPLES = 5
 OVERLAY_ALPHA = 0.30
@@ -214,10 +213,10 @@ def main():
     roi_map: dict[str, np.ndarray] = {}
     if draw_roi_flag:
         try:
-            roi_map = load_road_roi(ROI_CONFIG)
-            print(f"Loaded {len(roi_map)} ROI polygon(s) from {ROI_CONFIG}")
+            roi_map = load_road_roi(ROI_CONFIG_PATH)
+            print(f"Loaded {len(roi_map)} ROI polygon(s) from {ROI_CONFIG_PATH}")
         except FileNotFoundError:
-            print(f"WARNING: ROI config not found ({ROI_CONFIG}), skipping ROI overlay")
+            print(f"WARNING: ROI config not found ({ROI_CONFIG_PATH}), skipping ROI overlay")
 
     locations = discover_locations(BASE_DIR)
     n_clusters = len(locations)

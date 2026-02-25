@@ -30,14 +30,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from common import BASE_DIR, ROI_CONFIG, TRAIN_BY_LOCATION, discover_locations
+from common import DENSITY_OUTPUT_PATH as OUTPUT_DIR, ROI_CONFIG_PATH, TRAIN_BY_LOCATION_PATH, discover_locations
 
 logger = logging.getLogger(__name__)
-
-# ──────────────────────────────────────────────────────────────────────
-# Paths
-# ──────────────────────────────────────────────────────────────────────
-OUTPUT_DIR = BASE_DIR / "train"
 MAX_MASK_DIM = 640
 
 
@@ -56,7 +51,7 @@ def classify_percentage(p: float) -> str:
         return "full"
 
 
-def load_roi_config(config_path: Path = ROI_CONFIG) -> dict:
+def load_roi_config(config_path: Path = ROI_CONFIG_PATH) -> dict:
     """Load raw road_roi.json with polygon and image_size."""
     if not config_path.exists():
         raise FileNotFoundError(f"ROI config not found: {config_path}")
@@ -141,7 +136,7 @@ def classify_density(
 
     locations = discover_locations()
     if not locations:
-        logger.error("No location folders found in %s", TRAIN_BY_LOCATION)
+        logger.error("No location folders found in %s", TRAIN_BY_LOCATION_PATH)
         sys.exit(1)
 
     logger.info("Found %d locations", len(locations))
