@@ -68,14 +68,11 @@ TEXT_COLOR = (255, 255, 255)
 
 WINDOW_NAME = "Road ROI Annotation"
 
-# Lane estimation constants
 LANE_KDE_BANDWIDTH = 35
 MIN_LANE_WIDTH_PX = 80
 GAP_FACTOR = 0.3
 DEFAULT_NUM_LANES = 2
 DEFAULT_CARS_PER_LANE = 5
-
-# Vehicle classes that follow lanes (exclude pedestrian=4, bicycle=5, motorcycle=6)
 LANE_VEHICLE_CLASSES = {0, 1, 2, 3, 7, 8, 9, 10, 11, 12, 13}
 
 
@@ -264,19 +261,18 @@ def _get_road_axes(polygon: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
     """
     rect = cv2.minAreaRect(polygon)
     box = cv2.boxPoints(rect)
-    # rect edges
     edge0 = box[1] - box[0]
     edge1 = box[2] - box[1]
     len0 = float(np.linalg.norm(edge0))
     len1 = float(np.linalg.norm(edge1))
-    # road direction = longest edge
+
     if len0 >= len1:
         road_axis = edge0 / (len0 + 1e-9)
         road_length = len0
     else:
         road_axis = edge1 / (len1 + 1e-9)
         road_length = len1
-    # perpendicular
+
     cross_axis = np.array([-road_axis[1], road_axis[0]])
     return road_axis, cross_axis, road_length
 
@@ -298,13 +294,11 @@ def estimate_num_lanes(polygon: np.ndarray, label_data: np.ndarray) -> int:
     if len(polygon) < 3 or len(label_data) < 5:
         return DEFAULT_NUM_LANES
 
-    # Filter to lane-following vehicle classes
     mask_cls = np.isin(label_data[:, 0].astype(int), list(LANE_VEHICLE_CLASSES))
     vehicles = label_data[mask_cls]
     if len(vehicles) < 5:
         return DEFAULT_NUM_LANES
 
-    # Filter to centroids inside the ROI polygon
     poly_contour = polygon.reshape(-1, 1, 2).astype(np.float32)
     inside_mask = np.array(
         [
@@ -316,11 +310,9 @@ def estimate_num_lanes(polygon: np.ndarray, label_data: np.ndarray) -> int:
     if len(inside) < 5:
         return DEFAULT_NUM_LANES
 
-    # Project onto cross-road axis
     _, cross_axis, _ = _get_road_axes(polygon)
-    projections = inside[:, 1:3] @ cross_axis  # dot product per centroid
+    projections = inside[:, 1:3] @ cross_axis
 
-    # Fit 1-D KDE
     proj_col = projections.reshape(-1, 1)
     kde = KernelDensity(bandwidth=LANE_KDE_BANDWIDTH, kernel="gaussian")
     kde.fit(proj_col)
@@ -329,7 +321,6 @@ def estimate_num_lanes(polygon: np.ndarray, label_data: np.ndarray) -> int:
     x_eval = np.linspace(p_min, p_max, 500).reshape(-1, 1)
     density = np.exp(kde.score_samples(x_eval))
 
-    # Count peaks
     step_size = (p_max - p_min) / 500 + 1e-9
     peaks, _ = find_peaks(density, distance=MIN_LANE_WIDTH_PX / step_size)
     n_lanes = max(len(peaks), 1)
@@ -354,7 +345,6 @@ def estimate_cars_per_lane(
 
     road_axis, _, road_length = _get_road_axes(polygon)
 
-    # Filter to lane-following vehicles inside ROI
     mask_cls = np.isin(label_data[:, 0].astype(int), list(LANE_VEHICLE_CLASSES))
     vehicles = label_data[mask_cls]
     if len(vehicles) < 3:
@@ -371,8 +361,6 @@ def estimate_cars_per_lane(
     if len(inside) < 3:
         return DEFAULT_CARS_PER_LANE
 
-    # Compute vehicle extent along road axis:
-    # project bbox width and height onto road direction, take the larger
     w_px = inside[:, 3]
     h_px = inside[:, 4]
     car_lengths = np.maximum(
@@ -723,7 +711,6 @@ def main():
             print(f"  {loc_name}: skipped")
             continue
 
-        # ── Auto-estimate lanes & cars per lane ──────────────────────
         result_poly = np.array(result, dtype=np.int32)
         labels_dir = loc_dir / "labels"
         label_data = np.empty((0, 5))
@@ -733,7 +720,6 @@ def main():
         auto_lanes = estimate_num_lanes(result_poly, label_data)
         auto_cpl = estimate_cars_per_lane(result_poly, label_data, auto_lanes)
 
-        # Use existing values as fallback if re-annotating
         prev = existing.get(loc_name, {})
         default_lanes = prev.get("num_lanes", auto_lanes)
         default_cpl = prev.get("cars_per_lane", auto_cpl)

@@ -113,7 +113,6 @@ def backfill(
             }
         )
 
-    # ── Summary table ────────────────────────────────────────────────
     if results:
         hdr = f"{'Location':<14} {'Lanes':>5} {'Cars/Lane':>9} {'Detections':>10}"
         sep = "-" * len(hdr)
@@ -128,7 +127,6 @@ def backfill(
         logger.warning("No locations processed.")
         return
 
-    # ── Write ────────────────────────────────────────────────────────
     if dry_run:
         print("\n[dry-run] No changes written.")
     else:
