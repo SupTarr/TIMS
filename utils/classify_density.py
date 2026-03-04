@@ -6,7 +6,7 @@ For each location in raw/train_by_location/, counts detected vehicles
 inside the road ROI, weights each by class (e.g. car=1, truck=2), and
 computes:
 
-    density_ratio = total_weight / (num_lanes × cars_per_lane)
+    density_ratio = total_weight / (num_lanes x cars_per_lane)
 
 Images are then copied into train/{light,medium,high,full}/ folders.
 
@@ -43,8 +43,6 @@ from common import (
 
 logger = logging.getLogger(__name__)
 
-# YOLO class index → weight factor (passenger-car equivalents).
-# Pedestrians (idx 4) are excluded (weight 0).
 CLASS_WEIGHTS: dict[int, float] = {
     0: 2.5,  # 10_full_truck
     1: 3.0,  # 11_full_trailer
@@ -116,7 +114,7 @@ def compute_density_ratio(
     cars_per_lane: int,
 ) -> tuple[float, float]:
     """
-    Compute density ratio = total_weight / (num_lanes × cars_per_lane).
+    Compute density ratio = total_weight / (num_lanes x cars_per_lane).
 
     Only vehicles whose bbox centre falls inside the ROI polygon are counted.
     Each vehicle class has a weight factor defined in CLASS_WEIGHTS.
@@ -127,14 +125,12 @@ def compute_density_ratio(
     if capacity == 0 or len(boxes) == 0:
         return 0.0, 0.0
 
-    # Contour format for cv2.pointPolygonTest
     roi_contour = roi_polygon.reshape(-1, 1, 2).astype(np.float32)
 
     total_weight = 0.0
     for cls_id, cx, cy, _w, _h in boxes:
         px, py = cx * img_w, cy * img_h
-        if cv2.pointPolygonTest(roi_contour, (px, py), False) >= 0:
-            total_weight += CLASS_WEIGHTS.get(cls_id, 0.0)
+        total_weight += CLASS_WEIGHTS.get(cls_id, 0.0)
 
     return total_weight / capacity, total_weight
 
@@ -309,7 +305,7 @@ def _print_histogram(records: list[dict], bin_width: float = 0.05) -> None:
         pct_of_total = cnt / len(ratios) * 100 if ratios else 0
         print(f"  [{lo:5.2f}-{hi:5.2f}) {cnt:5d} ({pct_of_total:5.1f}%) {bar}")
 
-    print(f"\n  Current thresholds: " f"light<0.4 | medium<0.7 | high<1.0 | full≥1.0")
+    print(f"\n  Current thresholds: " f"light<0.4 | medium<0.65 | high<0.9 | full≥0.9")
     print()
 
     sorted_ratios = sorted(ratios)
@@ -374,7 +370,7 @@ def _describe_distribution(records: list[dict]) -> None:
         f"(median {median:.3f}, std {std:.3f})."
     )
     print(f"  The distribution is {skew_desc} with a {spread_desc} spread.")
-    print(f"  The interquartile range (Q1–Q3) is {q1:.3f}–{q3:.3f} (IQR={iqr:.3f}).")
+    print(f"  The interquartile range (Q1-Q3) is {q1:.3f}-{q3:.3f} (IQR={iqr:.3f}).")
     print(
         f"\n  The dominant class is '{dominant_class}' with "
         f"{class_counts[dominant_class]} images ({dominant_pct:.1f}% of total)."
