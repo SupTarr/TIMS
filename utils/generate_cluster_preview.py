@@ -253,7 +253,8 @@ def main():
         n_frames = data["n_frames"]
 
         loc_name = f"location_{loc_id}"
-        polygon = roi_map.get(loc_name, np.empty((0, 2), dtype=np.int32))
+        roi_entry = roi_map.get(loc_name, {})
+        polygon = roi_entry.get("polygon", np.empty((0, 2), dtype=np.int32))
         has_roi = len(polygon) >= 3
 
         sampled_ts = pick_sample_frames(frames, n_samples)

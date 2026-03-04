@@ -6,7 +6,8 @@ For every location_N folder, this script:
   1. Auto-suggests a road ROI polygon from YOLO detection-label heatmaps
      (optionally refined with a lane-segmentation model).
   2. Opens an interactive OpenCV window for manual adjustment.
-  3. Saves all polygons to a single road_roi.json config.
+  3. Prompts for number of lanes and cars-per-lane (auto-suggested).
+  4. Saves all polygons + lane metadata to a single road_roi.json config.
 
 Usage:
     python generate_road_roi.py                   # annotate all locations
@@ -36,6 +37,7 @@ from typing import Optional
 import cv2
 import numpy as np
 from PIL import Image
+from scipy.signal import find_peaks
 from sklearn.neighbors import KernelDensity
 
 from common import (
@@ -66,16 +68,26 @@ TEXT_COLOR = (255, 255, 255)
 
 WINDOW_NAME = "Road ROI Annotation"
 
+# Lane estimation constants
+LANE_KDE_BANDWIDTH = 35
+MIN_LANE_WIDTH_PX = 80
+GAP_FACTOR = 0.3
+DEFAULT_NUM_LANES = 2
+DEFAULT_CARS_PER_LANE = 5
+
+# Vehicle classes that follow lanes (exclude pedestrian=4, bicycle=5, motorcycle=6)
+LANE_VEHICLE_CLASSES = {0, 1, 2, 3, 7, 8, 9, 10, 11, 12, 13}
+
 
 # ──────────────────────────────────────────────────────────────────────
-# Step A — Auto-suggest ROI via detection-label heatmap
-# ──────────────────────────────────────────────────────────────
-def load_label_centroids(labels_dir: Path, img_w: int, img_h: int) -> np.ndarray:
+# Label data loading
+# ──────────────────────────────────────────────────────────────────────
+def load_label_data(labels_dir: Path, img_w: int, img_h: int) -> np.ndarray:
     """
-    Read YOLO label files and convert normalised bbox centres to pixel coords.
-    Returns an (N, 2) array of [x, y] pixel positions.
+    Read YOLO label files and return full detection data in pixel coords.
+    Returns an (N, 5) array: [class_id, cx_px, cy_px, w_px, h_px].
     """
-    centroids = []
+    rows: list[list[float]] = []
     for txt in labels_dir.glob("*.txt"):
         content = txt.read_text().strip()
         if not content:
@@ -84,11 +96,26 @@ def load_label_centroids(labels_dir: Path, img_w: int, img_h: int) -> np.ndarray
             parts = line.split()
             if len(parts) < 5:
                 continue
-            cx, cy = float(parts[1]), float(parts[2])
-            centroids.append([cx * img_w, cy * img_h])
-    if not centroids:
+            cls = int(parts[0])
+            cx = float(parts[1]) * img_w
+            cy = float(parts[2]) * img_h
+            w = float(parts[3]) * img_w
+            h = float(parts[4]) * img_h
+            rows.append([cls, cx, cy, w, h])
+    if not rows:
+        return np.empty((0, 5))
+    return np.array(rows)
+
+
+def load_label_centroids(labels_dir: Path, img_w: int, img_h: int) -> np.ndarray:
+    """
+    Read YOLO label files and convert normalised bbox centres to pixel coords.
+    Returns an (N, 2) array of [x, y] pixel positions.
+    """
+    data = load_label_data(labels_dir, img_w, img_h)
+    if len(data) == 0:
         return np.empty((0, 2))
-    return np.array(centroids)
+    return data[:, 1:3]
 
 
 def build_heatmap(
@@ -223,6 +250,164 @@ def refine_polygon_with_lane_seg(
     refined = approx.reshape(-1, 2).astype(np.int32)
     logger.info(f"  {loc_dir.name}: refined polygon has {len(refined)} vertices")
     return refined
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Step B2 — Auto-estimate number of lanes and cars per lane
+# ──────────────────────────────────────────────────────────────────────
+def _get_road_axes(polygon: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
+    """
+    Compute principal (road direction) and cross-road unit vectors from the
+    minimum-area bounding rectangle of the polygon.
+
+    Returns (road_axis, cross_axis, road_length_px).
+    """
+    rect = cv2.minAreaRect(polygon)
+    box = cv2.boxPoints(rect)
+    # rect edges
+    edge0 = box[1] - box[0]
+    edge1 = box[2] - box[1]
+    len0 = float(np.linalg.norm(edge0))
+    len1 = float(np.linalg.norm(edge1))
+    # road direction = longest edge
+    if len0 >= len1:
+        road_axis = edge0 / (len0 + 1e-9)
+        road_length = len0
+    else:
+        road_axis = edge1 / (len1 + 1e-9)
+        road_length = len1
+    # perpendicular
+    cross_axis = np.array([-road_axis[1], road_axis[0]])
+    return road_axis, cross_axis, road_length
+
+
+def estimate_num_lanes(polygon: np.ndarray, label_data: np.ndarray) -> int:
+    """
+    Estimate number of lanes by projecting vehicle centroids within the ROI
+    onto the cross-road axis and counting peaks in the 1-D KDE.
+
+    Parameters
+    ----------
+    polygon : (V, 2) int32 array of ROI vertices
+    label_data : (N, 5) array [class_id, cx, cy, w, h] in pixel coords
+
+    Returns
+    -------
+    Estimated lane count (>= 1).
+    """
+    if len(polygon) < 3 or len(label_data) < 5:
+        return DEFAULT_NUM_LANES
+
+    # Filter to lane-following vehicle classes
+    mask_cls = np.isin(label_data[:, 0].astype(int), list(LANE_VEHICLE_CLASSES))
+    vehicles = label_data[mask_cls]
+    if len(vehicles) < 5:
+        return DEFAULT_NUM_LANES
+
+    # Filter to centroids inside the ROI polygon
+    poly_contour = polygon.reshape(-1, 1, 2).astype(np.float32)
+    inside_mask = np.array(
+        [
+            cv2.pointPolygonTest(poly_contour, (float(cx), float(cy)), False) >= 0
+            for cx, cy in vehicles[:, 1:3]
+        ]
+    )
+    inside = vehicles[inside_mask]
+    if len(inside) < 5:
+        return DEFAULT_NUM_LANES
+
+    # Project onto cross-road axis
+    _, cross_axis, _ = _get_road_axes(polygon)
+    projections = inside[:, 1:3] @ cross_axis  # dot product per centroid
+
+    # Fit 1-D KDE
+    proj_col = projections.reshape(-1, 1)
+    kde = KernelDensity(bandwidth=LANE_KDE_BANDWIDTH, kernel="gaussian")
+    kde.fit(proj_col)
+
+    p_min, p_max = float(projections.min()), float(projections.max())
+    x_eval = np.linspace(p_min, p_max, 500).reshape(-1, 1)
+    density = np.exp(kde.score_samples(x_eval))
+
+    # Count peaks
+    step_size = (p_max - p_min) / 500 + 1e-9
+    peaks, _ = find_peaks(density, distance=MIN_LANE_WIDTH_PX / step_size)
+    n_lanes = max(len(peaks), 1)
+    logger.info(
+        f"  Lane estimate: {n_lanes} peaks in cross-road KDE "
+        f"({len(inside)} vehicles in ROI)"
+    )
+    return n_lanes
+
+
+def estimate_cars_per_lane(
+    polygon: np.ndarray, label_data: np.ndarray, num_lanes: int
+) -> int:
+    """
+    Geometric estimate: how many cars fit bumper-to-bumper (with gap) in one lane.
+
+    Uses the road-direction extent of the ROI and median vehicle length
+    along that axis.
+    """
+    if len(polygon) < 3 or len(label_data) < 3 or num_lanes < 1:
+        return DEFAULT_CARS_PER_LANE
+
+    road_axis, _, road_length = _get_road_axes(polygon)
+
+    # Filter to lane-following vehicles inside ROI
+    mask_cls = np.isin(label_data[:, 0].astype(int), list(LANE_VEHICLE_CLASSES))
+    vehicles = label_data[mask_cls]
+    if len(vehicles) < 3:
+        return DEFAULT_CARS_PER_LANE
+
+    poly_contour = polygon.reshape(-1, 1, 2).astype(np.float32)
+    inside_mask = np.array(
+        [
+            cv2.pointPolygonTest(poly_contour, (float(cx), float(cy)), False) >= 0
+            for cx, cy in vehicles[:, 1:3]
+        ]
+    )
+    inside = vehicles[inside_mask]
+    if len(inside) < 3:
+        return DEFAULT_CARS_PER_LANE
+
+    # Compute vehicle extent along road axis:
+    # project bbox width and height onto road direction, take the larger
+    w_px = inside[:, 3]
+    h_px = inside[:, 4]
+    car_lengths = np.maximum(
+        np.abs(w_px * road_axis[0]) + np.abs(h_px * road_axis[1]),
+        np.abs(w_px * road_axis[1]) + np.abs(h_px * road_axis[0]),
+    )
+    median_length = float(np.median(car_lengths))
+    if median_length < 1:
+        return DEFAULT_CARS_PER_LANE
+
+    cars = int(road_length / (median_length * (1 + GAP_FACTOR)))
+    cars = max(cars, 1)
+    logger.info(
+        f"  Cars/lane estimate: {cars} "
+        f"(road_len={road_length:.0f}px, median_car={median_length:.0f}px)"
+    )
+    return cars
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Console prompt helpers
+# ──────────────────────────────────────────────────────────────────────
+def prompt_positive_int(prompt_text: str, default: int) -> int:
+    """Prompt user for a positive integer with a default value."""
+    while True:
+        raw = input(prompt_text).strip()
+        if not raw:
+            return default
+        try:
+            val = int(raw)
+            if val >= 1:
+                return val
+            print("  Please enter a positive integer.")
+        except ValueError:
+            print("  Please enter a valid integer.")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -379,14 +564,20 @@ def preview_existing(config_path: Path):
         cv2.fillPoly(overlay, [poly], POLY_COLOR)
         cv2.addWeighted(overlay, OVERLAY_ALPHA, img, 1 - OVERLAY_ALPHA, 0, img)
         cv2.polylines(img, [poly], True, POLY_EDGE_COLOR, 2, cv2.LINE_AA)
+
+        num_lanes = entry.get("num_lanes", 0)
+        cars_per_lane = entry.get("cars_per_lane", 0)
+        max_cars = num_lanes * cars_per_lane if num_lanes and cars_per_lane else 0
+
+        info_text = f"{loc_name} ({len(poly)} verts"
+        if num_lanes:
+            info_text += (
+                f" | {num_lanes} lanes | {cars_per_lane} cars/lane | max {max_cars}"
+            )
+        info_text += ")"
+
         cv2.putText(
-            img,
-            f"{loc_name} ({len(poly)} vertices)",
-            (10, 30),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (0, 255, 255),
-            2,
+            img, info_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2
         )
 
         cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
@@ -532,8 +723,42 @@ def main():
             print(f"  {loc_name}: skipped")
             continue
 
-        existing[loc_name] = {"polygon": result, "image_size": [img_w, img_h]}
-        print(f"  {loc_name}: saved {len(result)} vertices")
+        # ── Auto-estimate lanes & cars per lane ──────────────────────
+        result_poly = np.array(result, dtype=np.int32)
+        labels_dir = loc_dir / "labels"
+        label_data = np.empty((0, 5))
+        if labels_dir.exists() and not args.no_auto:
+            label_data = load_label_data(labels_dir, img_w, img_h)
+
+        auto_lanes = estimate_num_lanes(result_poly, label_data)
+        auto_cpl = estimate_cars_per_lane(result_poly, label_data, auto_lanes)
+
+        # Use existing values as fallback if re-annotating
+        prev = existing.get(loc_name, {})
+        default_lanes = prev.get("num_lanes", auto_lanes)
+        default_cpl = prev.get("cars_per_lane", auto_cpl)
+
+        print(f"\n  Auto-estimated: {auto_lanes} lanes, {auto_cpl} cars/lane")
+        num_lanes = prompt_positive_int(
+            f"  Number of lanes [{default_lanes}]: ", default_lanes
+        )
+        cars_per_lane = prompt_positive_int(
+            f"  Cars per lane [{default_cpl}]: ", default_cpl
+        )
+
+        max_cars = num_lanes * cars_per_lane
+        print(
+            f"  \u2192 {num_lanes} lanes \u00d7 {cars_per_lane} cars/lane"
+            f" = {max_cars} max cars in ROI"
+        )
+
+        existing[loc_name] = {
+            "polygon": result,
+            "image_size": [img_w, img_h],
+            "num_lanes": num_lanes,
+            "cars_per_lane": cars_per_lane,
+        }
+        print(f"  {loc_name}: saved {len(result)} vertices + lane metadata")
 
     out = save_road_roi(existing, config_path)
     n_defined = sum(1 for v in existing.values() if v.get("polygon"))

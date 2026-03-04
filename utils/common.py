@@ -140,23 +140,31 @@ def discover_locations(base_dir: Optional[Path] = None) -> list[tuple[int, Path]
 # ──────────────────────────────────────────────────────────────────────
 # ROI config I/O
 # ──────────────────────────────────────────────────────────────────────
-def load_road_roi(config_path: Optional[Path] = None) -> dict[str, np.ndarray]:
+def load_road_roi(config_path: Optional[Path] = None) -> dict[str, dict]:
     """
-    Load road ROI polygons from JSON config.
+    Load road ROI config from JSON.
 
-    Returns a dict mapping location name (e.g. ``"location_0"``) to an
-    ``np.ndarray`` of shape (N, 2) with dtype ``int32``, matching the
-    ``ROI_POLYGON`` convention used elsewhere in the project.
+    Returns a dict mapping location name (e.g. ``"location_0"``) to a dict
+    with keys:
+      - ``"polygon"``: ``np.ndarray`` of shape (N, 2), dtype ``int32``
+      - ``"image_size"``: ``[width, height]``
+      - ``"num_lanes"``: ``int`` (number of lanes, 0 if not set)
+      - ``"cars_per_lane"``: ``int`` (max cars per lane, 0 if not set)
     """
     config_path = config_path or ROI_CONFIG_PATH
     if not config_path.exists():
         raise FileNotFoundError(f"ROI config not found: {config_path}")
     data = json.loads(config_path.read_text())
-    roi_map: dict[str, np.ndarray] = {}
+    roi_map: dict[str, dict] = {}
     for loc_name, entry in data.items():
         polygon = entry.get("polygon", [])
         if polygon:
-            roi_map[loc_name] = np.array(polygon, dtype=np.int32)
+            roi_map[loc_name] = {
+                "polygon": np.array(polygon, dtype=np.int32),
+                "image_size": entry.get("image_size", [0, 0]),
+                "num_lanes": entry.get("num_lanes", 0),
+                "cars_per_lane": entry.get("cars_per_lane", 0),
+            }
     return roi_map
 
 
