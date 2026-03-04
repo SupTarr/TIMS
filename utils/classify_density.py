@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """
-Classify images by traffic density based on vehicle-ROI intersection.
+Classify images by traffic density using weighted vehicle counts.
 
-For each location in raw/train_by_location/, computes the percentage P of
-the road ROI area covered by detected vehicle bounding boxes, then copies
-images into train/{light,medium,high,full}/ folders.
+For each location in raw/train_by_location/, counts detected vehicles
+inside the road ROI, weights each by class (e.g. car=1, truck=2), and
+computes:
 
-Density thresholds:
-  - light:  P < 40%
-  - medium: 40% ≤ P < 65%
-  - high:   65% ≤ P < 90%
-  - full:   P ≥ 90%
+    density_ratio = total_weight / (num_lanes × cars_per_lane)
+
+Images are then copied into train/{light,medium,high,full}/ folders.
+
+Density thresholds (on ratio):
+  - light:  ratio < 0.4
+  - medium: 0.4 ≤ ratio < 0.7
+  - high:   0.7 ≤ ratio < 1.0
+  - full:   ratio ≥ 1.0
 
 Usage:
     python classify_density.py                # run classification
@@ -38,93 +42,101 @@ from common import (
 )
 
 logger = logging.getLogger(__name__)
-MAX_MASK_DIM = 640
+
+# YOLO class index → weight factor (passenger-car equivalents).
+# Pedestrians (idx 4) are excluded (weight 0).
+CLASS_WEIGHTS: dict[int, float] = {
+    0: 2.5,  # 10_full_truck
+    1: 3.0,  # 11_full_trailer
+    2: 3.0,  # 12_semi_trailer
+    3: 1.0,  # 13_modified_car
+    4: 0.0,  # 14_pedestrian  (excluded)
+    5: 0.3,  # 1_bicycle
+    6: 0.5,  # 2_motorcycle
+    7: 1.0,  # 3_car
+    8: 1.0,  # 4_car_7
+    9: 1.5,  # 5_small_bus
+    10: 2.0,  # 6_medium_bus
+    11: 2.5,  # 7_large_bus
+    12: 1.5,  # 8_pickup
+    13: 2.0,  # 9_truck
+}
 
 
 # ──────────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────────
-def classify_percentage(p: float) -> str:
-    """Classify a percentage into a density category."""
-    if p < 40:
+def classify_ratio(r: float) -> str:
+    """Classify a density ratio into a density category."""
+    if r < 0.4:
         return "light"
-    elif p < 65:
+    elif r < 0.7:
         return "medium"
-    elif p < 90:
+    elif r < 1.0:
         return "high"
     else:
         return "full"
 
 
 def load_roi_config(config_path: Path = ROI_CONFIG_PATH) -> dict:
-    """Load raw road_roi.json with polygon and image_size."""
+    """Load raw road_roi.json with polygon, image_size, num_lanes, cars_per_lane."""
     if not config_path.exists():
         raise FileNotFoundError(f"ROI config not found: {config_path}")
     return json.loads(config_path.read_text())
 
 
-def parse_yolo_labels(label_path: Path) -> list[tuple[float, float, float, float]]:
+def parse_yolo_labels(label_path: Path) -> list[tuple[int, float, float, float, float]]:
     """
-    Parse YOLO label file into list of (cx, cy, w, h) normalised coords.
+    Parse YOLO label file into list of (class_id, cx, cy, w, h).
     Returns empty list for empty / missing files.
     """
     if not label_path.exists():
         return []
-    boxes: list[tuple[float, float, float, float]] = []
+    boxes: list[tuple[int, float, float, float, float]] = []
     for line in label_path.read_text().strip().splitlines():
         parts = line.strip().split()
         if len(parts) >= 5:
+            cls_id = int(parts[0])
             cx, cy, w, h = (
                 float(parts[1]),
                 float(parts[2]),
                 float(parts[3]),
                 float(parts[4]),
             )
-            boxes.append((cx, cy, w, h))
+            boxes.append((cls_id, cx, cy, w, h))
     return boxes
 
 
-def compute_density_percentage(
-    boxes: list[tuple[float, float, float, float]],
+def compute_density_ratio(
+    boxes: list[tuple[int, float, float, float, float]],
     roi_polygon: np.ndarray,
     img_w: int,
     img_h: int,
-) -> float:
+    num_lanes: int,
+    cars_per_lane: int,
+) -> tuple[float, float]:
     """
-    Compute the percentage of ROI area covered by vehicle bounding boxes.
+    Compute density ratio = total_weight / (num_lanes × cars_per_lane).
 
-    Uses downscaled mask rasterisation for efficiency.
-    Overlapping bboxes are counted only once (union within ROI).
+    Only vehicles whose bbox centre falls inside the ROI polygon are counted.
+    Each vehicle class has a weight factor defined in CLASS_WEIGHTS.
 
-    Returns P in [0, 100].
+    Returns (density_ratio, total_weight).
     """
-    if len(boxes) == 0:
-        return 0.0
+    capacity = num_lanes * cars_per_lane
+    if capacity == 0 or len(boxes) == 0:
+        return 0.0, 0.0
 
-    scale = min(MAX_MASK_DIM / max(img_w, img_h), 1.0)
-    sw, sh = int(img_w * scale), int(img_h * scale)
+    # Contour format for cv2.pointPolygonTest
+    roi_contour = roi_polygon.reshape(-1, 1, 2).astype(np.float32)
 
-    scaled_roi = (roi_polygon * scale).astype(np.int32)
-    roi_mask = np.zeros((sh, sw), dtype=np.uint8)
-    cv2.fillPoly(roi_mask, [scaled_roi], 1)
-    roi_area = np.count_nonzero(roi_mask)
+    total_weight = 0.0
+    for cls_id, cx, cy, _w, _h in boxes:
+        px, py = cx * img_w, cy * img_h
+        if cv2.pointPolygonTest(roi_contour, (px, py), False) >= 0:
+            total_weight += CLASS_WEIGHTS.get(cls_id, 0.0)
 
-    if roi_area == 0:
-        return 0.0
-
-    bbox_mask = np.zeros((sh, sw), dtype=np.uint8)
-    for cx, cy, w, h in boxes:
-        x1 = int((cx - w / 2) * img_w * scale)
-        y1 = int((cy - h / 2) * img_h * scale)
-        x2 = int((cx + w / 2) * img_w * scale)
-        y2 = int((cy + h / 2) * img_h * scale)
-        x1, y1 = max(0, x1), max(0, y1)
-        x2, y2 = min(sw, x2), min(sh, y2)
-        if x2 > x1 and y2 > y1:
-            bbox_mask[y1:y2, x1:x2] = 1
-
-    intersection = np.count_nonzero(roi_mask & bbox_mask)
-    return (intersection / roi_area) * 100.0
+    return total_weight / capacity, total_weight
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -151,7 +163,7 @@ def classify_density(
 
     stats: dict[str, int] = {cls: 0 for cls in DENSITY_CLASSES}
     location_stats: dict[str, dict[str, int]] = {}
-    all_percentages: list[dict] = []
+    all_records: list[dict] = []
 
     for loc_id, loc_dir in locations:
         loc_name = f"location_{loc_id}"
@@ -163,6 +175,15 @@ def classify_density(
         entry = roi_config[loc_name]
         roi_polygon = np.array(entry["polygon"], dtype=np.int32)
         img_w, img_h = entry["image_size"]
+
+        num_lanes = entry.get("num_lanes")
+        cars_per_lane = entry.get("cars_per_lane")
+        if num_lanes is None or cars_per_lane is None:
+            logger.warning(
+                "%s missing num_lanes/cars_per_lane in road_roi.json — skipping",
+                loc_name,
+            )
+            continue
 
         images_dir = loc_dir / "images"
         labels_dir = loc_dir / "labels"
@@ -178,25 +199,29 @@ def classify_density(
         for img_path in image_files:
             label_path = labels_dir / (img_path.stem + ".txt")
             boxes = parse_yolo_labels(label_path)
-            p = compute_density_percentage(boxes, roi_polygon, img_w, img_h)
-            density = classify_percentage(p)
+            ratio, total_w = compute_density_ratio(
+                boxes, roi_polygon, img_w, img_h, num_lanes, cars_per_lane
+            )
+            density = classify_ratio(ratio)
 
-            all_percentages.append(
+            all_records.append(
                 {
                     "location": loc_name,
                     "image": img_path.name,
                     "num_boxes": len(boxes),
-                    "density_pct": round(p, 2),
+                    "total_weight": round(total_w, 2),
+                    "density_ratio": round(ratio, 4),
                     "class": density,
                 }
             )
 
             if verbose:
                 logger.info(
-                    "  %s: %d boxes, P=%.1f%% → %s",
+                    "  %s: %d boxes, weight=%.1f, ratio=%.3f → %s",
                     img_path.name,
                     len(boxes),
-                    p,
+                    total_w,
+                    ratio,
                     density,
                 )
 
@@ -220,9 +245,9 @@ def classify_density(
         )
 
     if histogram:
-        _print_histogram(all_percentages)
-        _describe_distribution(all_percentages)
-        _export_csv(all_percentages)
+        _print_histogram(all_records)
+        _describe_distribution(all_records)
+        _export_csv(all_records)
         return
 
     total = sum(stats.values())
@@ -243,69 +268,69 @@ def classify_density(
 # ──────────────────────────────────────────────────────────────────────
 # Histogram / distribution helpers
 # ──────────────────────────────────────────────────────────────────────
-def _print_histogram(records: list[dict], bin_width: int = 5) -> None:
-    """Print an ASCII histogram of density percentages."""
-    pcts = [r["density_pct"] for r in records]
-    if not pcts:
+def _print_histogram(records: list[dict], bin_width: float = 0.05) -> None:
+    """Print an ASCII histogram of density ratios."""
+    ratios = [r["density_ratio"] for r in records]
+    if not ratios:
         print("No data.")
         return
 
-    max_pct = max(pcts)
+    max_ratio = max(ratios)
     bins: list[tuple[float, float]] = []
     lo = 0.0
-    while lo <= max(max_pct, 100):
-        bins.append((lo, lo + bin_width))
-        lo += bin_width
+    while lo <= max(max_ratio, 1.5):
+        bins.append((lo, round(lo + bin_width, 4)))
+        lo = round(lo + bin_width, 4)
 
     counts = [0] * len(bins)
-    for p in pcts:
-        idx = min(int(p // bin_width), len(counts) - 1)
+    for r in ratios:
+        idx = min(int(r / bin_width), len(counts) - 1)
         counts[idx] += 1
 
     bar_max = max(counts) if counts else 1
     bar_width = 50
 
     print(f"\n{'=' * 70}")
-    print("Density Percentage Histogram")
+    print("Density Ratio Histogram")
     print(f"{'=' * 70}")
-    print(f"  Total images: {len(pcts)}")
+    print(f"  Total images: {len(ratios)}")
     print(
-        f"  Min: {min(pcts):.1f}%  Max: {max(pcts):.1f}%  "
-        f"Mean: {sum(pcts)/len(pcts):.1f}%  "
-        f"Median: {sorted(pcts)[len(pcts)//2]:.1f}%"
+        f"  Min: {min(ratios):.3f}  Max: {max(ratios):.3f}  "
+        f"Mean: {sum(ratios)/len(ratios):.3f}  "
+        f"Median: {sorted(ratios)[len(ratios)//2]:.3f}"
     )
     print()
 
     for (lo, hi), cnt in zip(bins, counts):
-        if cnt == 0 and lo > max_pct + bin_width:
+        if cnt == 0 and lo > max_ratio + bin_width:
             continue
         bar_len = int(cnt / bar_max * bar_width) if bar_max > 0 else 0
         bar = "█" * bar_len
-        pct_of_total = cnt / len(pcts) * 100 if pcts else 0
-        print(f"  [{lo:5.0f}-{hi:5.0f}%) {cnt:5d} ({pct_of_total:5.1f}%) {bar}")
+        pct_of_total = cnt / len(ratios) * 100 if ratios else 0
+        print(f"  [{lo:5.2f}-{hi:5.2f}) {cnt:5d} ({pct_of_total:5.1f}%) {bar}")
 
-    print(f"\n  Current thresholds: " f"light<40% | medium<65% | high<90% | full≥90%")
+    print(f"\n  Current thresholds: " f"light<0.4 | medium<0.7 | high<1.0 | full≥1.0")
     print()
 
-    sorted_pcts = sorted(pcts)
+    sorted_ratios = sorted(ratios)
     for q in (10, 25, 50, 75, 90, 95, 99):
-        idx = min(int(len(sorted_pcts) * q / 100), len(sorted_pcts) - 1)
-        print(f"  P{q:02d}: {sorted_pcts[idx]:6.1f}%")
+        idx = min(int(len(sorted_ratios) * q / 100), len(sorted_ratios) - 1)
+        print(f"  P{q:02d}: {sorted_ratios[idx]:6.3f}")
 
 
 def _describe_distribution(records: list[dict]) -> None:
     """Print a human-readable narrative description of the density distribution."""
-    pcts = [r["density_pct"] for r in records]
-    if not pcts:
+    ratios = [r["density_ratio"] for r in records]
+    if not ratios:
         return
 
-    n = len(pcts)
-    mean = sum(pcts) / n
-    sorted_pcts = sorted(pcts)
-    median = sorted_pcts[n // 2]
-    std = (sum((x - mean) ** 2 for x in pcts) / n) ** 0.5
-    q1 = sorted_pcts[n // 4]
-    q3 = sorted_pcts[3 * n // 4]
+    n = len(ratios)
+    mean = sum(ratios) / n
+    sorted_ratios = sorted(ratios)
+    median = sorted_ratios[n // 2]
+    std = (sum((x - mean) ** 2 for x in ratios) / n) ** 0.5
+    q1 = sorted_ratios[n // 4]
+    q3 = sorted_ratios[3 * n // 4]
     iqr = q3 - q1
 
     class_counts: dict[str, int] = {}
@@ -318,7 +343,7 @@ def _describe_distribution(records: list[dict]) -> None:
 
     loc_means: dict[str, list[float]] = {}
     for r in records:
-        loc_means.setdefault(r["location"], []).append(r["density_pct"])
+        loc_means.setdefault(r["location"], []).append(r["density_ratio"])
     loc_avg = {k: sum(v) / len(v) for k, v in loc_means.items()}
     busiest = max(loc_avg, key=loc_avg.get)
     quietest = min(loc_avg, key=loc_avg.get)
@@ -330,11 +355,11 @@ def _describe_distribution(records: list[dict]) -> None:
     else:
         skew_desc = "approximately symmetric"
 
-    if std < 5:
+    if std < 0.05:
         spread_desc = "very tight"
-    elif std < 15:
+    elif std < 0.15:
         spread_desc = "moderate"
-    elif std < 30:
+    elif std < 0.30:
         spread_desc = "wide"
     else:
         spread_desc = "very wide"
@@ -344,12 +369,12 @@ def _describe_distribution(records: list[dict]) -> None:
     print(f"{'=' * 70}")
     print(f"\n  The dataset contains {n} images across {len(loc_means)} locations.")
     print(
-        f"  Density percentages range from {sorted_pcts[0]:.1f}% to "
-        f"{sorted_pcts[-1]:.1f}% with a mean of {mean:.1f}% "
-        f"(median {median:.1f}%, std {std:.1f}%)."
+        f"  Density ratios range from {sorted_ratios[0]:.3f} to "
+        f"{sorted_ratios[-1]:.3f} with a mean of {mean:.3f} "
+        f"(median {median:.3f}, std {std:.3f})."
     )
     print(f"  The distribution is {skew_desc} with a {spread_desc} spread.")
-    print(f"  The interquartile range (Q1–Q3) is {q1:.1f}%–{q3:.1f}% (IQR={iqr:.1f}%).")
+    print(f"  The interquartile range (Q1–Q3) is {q1:.3f}–{q3:.3f} (IQR={iqr:.3f}).")
     print(
         f"\n  The dominant class is '{dominant_class}' with "
         f"{class_counts[dominant_class]} images ({dominant_pct:.1f}% of total)."
@@ -359,8 +384,8 @@ def _describe_distribution(records: list[dict]) -> None:
         cnt = class_counts.get(cls, 0)
         pct = cnt / n * 100
         print(f"    {cls:>8s}: {cnt:5d} ({pct:5.1f}%)")
-    print(f"\n  Busiest location:  {busiest} (avg density {loc_avg[busiest]:.1f}%)")
-    print(f"  Quietest location: {quietest} (avg density {loc_avg[quietest]:.1f}%)")
+    print(f"\n  Busiest location:  {busiest} (avg ratio {loc_avg[busiest]:.3f})")
+    print(f"  Quietest location: {quietest} (avg ratio {loc_avg[quietest]:.3f})")
     print()
 
 
@@ -370,7 +395,15 @@ def _export_csv(records: list[dict]) -> None:
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     with csv_path.open("w", newline="") as f:
         writer = csv.DictWriter(
-            f, fieldnames=["location", "image", "num_boxes", "density_pct", "class"]
+            f,
+            fieldnames=[
+                "location",
+                "image",
+                "num_boxes",
+                "total_weight",
+                "density_ratio",
+                "class",
+            ],
         )
         writer.writeheader()
         writer.writerows(records)
@@ -382,7 +415,7 @@ def _export_csv(records: list[dict]) -> None:
 # ──────────────────────────────────────────────────────────────────────
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Classify images by traffic density (vehicle-ROI coverage)."
+        description="Classify images by traffic density (weighted vehicle count / lane capacity)."
     )
     parser.add_argument(
         "--dry-run",
