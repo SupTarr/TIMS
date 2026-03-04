@@ -85,7 +85,7 @@ def compute_density_ratio(
     cars_per_lane: int,
 ) -> tuple[float, float]:
     """
-    Compute density ratio = total_weight / (num_lanes × cars_per_lane).
+    Compute density ratio = total_weight / (num_lanes x cars_per_lane).
 
     Only vehicles whose bbox centre falls inside the ROI polygon are counted.
     Each vehicle class has a weight factor defined in CLASS_WEIGHTS.
@@ -280,9 +280,7 @@ def _print_histogram(records: list[dict], bin_width: float = 0.05) -> None:
         logger.info("  [%5.2f-%5.2f) %5d (%5.1f%%) %s", lo, hi, cnt, pct_of_total, bar)
 
     logger.info("")
-    logger.info(
-        "  Current thresholds: light<0.4 | medium<0.65 | high<0.9 | full≥0.9"
-    )
+    logger.info("  Current thresholds: light<0.4 | medium<0.65 | high<0.9 | full≥0.9")
     logger.info("")
 
     sorted_ratios = sorted(ratios)
@@ -342,7 +340,9 @@ def _describe_distribution(records: list[dict]) -> None:
     logger.info("Distribution Description")
     logger.info("=" * 70)
     logger.info("")
-    logger.info("  The dataset contains %d images across %d locations.", n, len(loc_means))
+    logger.info(
+        "  The dataset contains %d images across %d locations.", n, len(loc_means)
+    )
     logger.info(
         "  Density ratios range from %.3f to %.3f with a mean of %.3f "
         "(median %.3f, std %.3f).",
@@ -368,9 +368,7 @@ def _describe_distribution(records: list[dict]) -> None:
         pct = cnt / n * 100
         logger.info("    %8s: %5d (%5.1f%%)", cls, cnt, pct)
     logger.info("  Busiest location:  %s (avg ratio %.3f)", busiest, loc_avg[busiest])
-    logger.info(
-        "  Quietest location: %s (avg ratio %.3f)", quietest, loc_avg[quietest]
-    )
+    logger.info("  Quietest location: %s (avg ratio %.3f)", quietest, loc_avg[quietest])
     logger.info("")
 
 

@@ -217,9 +217,7 @@ CLASS_NAMES: dict[int, str] = {
 }
 
 
-def parse_yolo_labels(
-    label_path: Path,
-) -> list[tuple[int, float, float, float, float]]:
+def parse_yolo_labels(label_path: Path) -> list[tuple[int, float, float, float, float]]:
     """
     Parse a YOLO label file into a list of detections.
 
@@ -237,7 +235,12 @@ def parse_yolo_labels(
         if len(parts) < 5:
             continue
         cls_id = int(parts[0])
-        cx, cy, w, h = float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4])
+        cx, cy, w, h = (
+            float(parts[1]),
+            float(parts[2]),
+            float(parts[3]),
+            float(parts[4]),
+        )
         boxes.append((cls_id, cx, cy, w, h))
     return boxes
 

@@ -39,7 +39,8 @@ def main() -> None:
     RAW_TRAIN_PATH.mkdir(parents=True, exist_ok=True)
 
     image_files = sorted(
-        f for f in TIMS_FINAL_IMAGES_PATH.iterdir()
+        f
+        for f in TIMS_FINAL_IMAGES_PATH.iterdir()
         if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
     )
 

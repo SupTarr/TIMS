@@ -481,9 +481,7 @@ def main():
 
     if args.pca > 0 and args.pca < clip_embeddings.shape[1]:
         logger.info(
-            "[4/8] PCA reduction %d -> %d dims...",
-            clip_embeddings.shape[1],
-            args.pca,
+            "[4/8] PCA reduction %d -> %d dims...", clip_embeddings.shape[1], args.pca
         )
         pca = PCA(n_components=args.pca, random_state=42)
         clip_reduced = pca.fit_transform(clip_embeddings)

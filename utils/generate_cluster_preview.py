@@ -95,6 +95,7 @@ def overlay_roi(img_rgb: np.ndarray, polygon: np.ndarray) -> np.ndarray:
         cv2.circle(vis, tuple(pt), 5, (255, 0, 0), -1, cv2.LINE_AA)
     return vis
 
+
 def draw_boxes(img_rgb: np.ndarray, boxes: list, thickness: int = 2) -> np.ndarray:
     """Draw YOLO bounding boxes with class labels on an RGB image."""
     vis = img_rgb.copy()
@@ -179,7 +180,9 @@ def main():
     if draw_roi_flag:
         try:
             roi_map = load_road_roi(ROI_CONFIG_PATH)
-            logger.info("Loaded %d ROI polygon(s) from %s", len(roi_map), ROI_CONFIG_PATH)
+            logger.info(
+                "Loaded %d ROI polygon(s) from %s", len(roi_map), ROI_CONFIG_PATH
+            )
         except FileNotFoundError:
             logger.warning(
                 "ROI config not found (%s), skipping ROI overlay", ROI_CONFIG_PATH

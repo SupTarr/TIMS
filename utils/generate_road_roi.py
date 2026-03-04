@@ -652,12 +652,8 @@ def main():
     logger.info("Road ROI Annotation Tool")
     logger.info("=" * 60)
     logger.info("Locations: %s", [f"location_{lid}" for lid, _ in locations])
-    logger.info(
-        "Auto-suggest: %s", "OFF" if args.no_auto else "ON (labels heatmap)"
-    )
-    logger.info(
-        "Lane-seg refinement: %s", "OFF" if args.no_lane_seg else "ON"
-    )
+    logger.info("Auto-suggest: %s", "OFF" if args.no_auto else "ON (labels heatmap)")
+    logger.info("Lane-seg refinement: %s", "OFF" if args.no_lane_seg else "ON")
     logger.info("Output: %s", config_path)
     logger.info("")
 
@@ -700,9 +696,7 @@ def main():
                 )
 
         if len(suggested_poly) > 0:
-            logger.info(
-                "  Auto-suggested polygon: %d vertices", len(suggested_poly)
-            )
+            logger.info("  Auto-suggested polygon: %d vertices", len(suggested_poly))
         else:
             logger.info("  No auto-suggestion available — draw manually")
 
@@ -730,9 +724,7 @@ def main():
         default_lanes = prev.get("num_lanes", auto_lanes)
         default_cpl = prev.get("cars_per_lane", auto_cpl)
 
-        logger.info(
-            "  Auto-estimated: %d lanes, %d cars/lane", auto_lanes, auto_cpl
-        )
+        logger.info("  Auto-estimated: %d lanes, %d cars/lane", auto_lanes, auto_cpl)
         num_lanes = prompt_positive_int(
             f"  Number of lanes [{default_lanes}]: ", default_lanes
         )
@@ -754,9 +746,7 @@ def main():
             "num_lanes": num_lanes,
             "cars_per_lane": cars_per_lane,
         }
-        logger.info(
-            "  %s: saved %d vertices + lane metadata", loc_name, len(result)
-        )
+        logger.info("  %s: saved %d vertices + lane metadata", loc_name, len(result))
 
     out = save_road_roi(existing, config_path)
     n_defined = sum(1 for v in existing.values() if v.get("polygon"))
