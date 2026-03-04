@@ -26,6 +26,7 @@ from common import (
     discover_locations,
     load_road_roi,
     save_road_roi,
+    setup_logging,
 )
 from generate_road_roi import (
     estimate_cars_per_lane,
@@ -139,6 +140,7 @@ def backfill(
 
 
 def main() -> None:
+    setup_logging()
     parser = argparse.ArgumentParser(
         description="Backfill num_lanes / cars_per_lane into road_roi.json"
     )
@@ -167,10 +169,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s  %(levelname)-8s  %(message)s",
-        datefmt="%H:%M:%S",
-    )
-
     main()

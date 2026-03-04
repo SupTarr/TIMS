@@ -10,11 +10,15 @@ Usage:
 import logging
 import shutil
 
-from common import CCTV_PATTERN_LOOSE, RAW_TRAIN_PATH, TIMS_FINAL_IMAGES_PATH
+from common import (
+    CCTV_PATTERN_LOOSE,
+    IMAGE_EXTENSIONS,
+    RAW_TRAIN_PATH,
+    TIMS_FINAL_IMAGES_PATH,
+    setup_logging,
+)
 
 logger = logging.getLogger(__name__)
-
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff"}
 
 
 def classify_by_filename(filename: str) -> str:
@@ -30,7 +34,7 @@ def classify_by_filename(filename: str) -> str:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    setup_logging()
 
     if not TIMS_FINAL_IMAGES_PATH.is_dir():
         logger.error("Source directory not found: %s", TIMS_FINAL_IMAGES_PATH)
@@ -72,10 +76,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s  %(levelname)-8s  %(message)s",
-        datefmt="%H:%M:%S",
-    )
-
     main()

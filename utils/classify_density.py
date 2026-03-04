@@ -39,6 +39,7 @@ from common import (
     filter_vehicles_in_roi,
     load_road_roi,
     parse_yolo_labels,
+    setup_logging,
 )
 
 logger = logging.getLogger(__name__)
@@ -414,11 +415,7 @@ def main() -> None:
         help="Print density distribution histogram, description and export CSV (no copy).",
     )
     args = parser.parse_args()
-
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(levelname)s: %(message)s",
-    )
+    setup_logging(args.verbose)
 
     classify_density(
         dry_run=args.dry_run, verbose=args.verbose, histogram=args.histogram
@@ -426,10 +423,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s  %(levelname)-8s  %(message)s",
-        datefmt="%H:%M:%S",
-    )
-
     main()

@@ -10,7 +10,12 @@ For each location_N folder:
 import logging
 import shutil
 
-from common import TIMS_FINAL_LABELS_PATH, TRAIN_BY_LOCATION_PATH, discover_locations
+from common import (
+    TIMS_FINAL_LABELS_PATH,
+    TRAIN_BY_LOCATION_PATH,
+    discover_locations,
+    setup_logging,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -84,10 +89,5 @@ def organize():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s  %(levelname)-8s  %(message)s",
-        datefmt="%H:%M:%S",
-    )
-
+    setup_logging()
     organize()

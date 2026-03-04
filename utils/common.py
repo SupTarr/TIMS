@@ -30,6 +30,8 @@ __all__ = [
     "CCTV_PATTERN",
     "CCTV_PATTERN_LOOSE",
     "CLASS_NAMES",
+    "IMAGE_EXTENSIONS",
+    "LANE_VEHICLE_CLASSES",
     # Functions
     "discover_locations",
     "filter_vehicles_in_roi",
@@ -40,12 +42,26 @@ __all__ = [
     "pick_representative",
     "pick_representatives",
     "save_road_roi",
+    "setup_logging",
     "time_period",
 ]
 
 # ──────────────────────────────────────────────────────────────────────
 # Shared constants
 # ──────────────────────────────────────────────────────────────────────
+import logging
+
+
+def setup_logging(verbose: bool = False) -> None:
+    """Configure standard root logger format for all utils."""
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(asctime)s  %(levelname)-8s  %(message)s",
+        datefmt="%H:%M:%S",
+        force=True,  # Overwrite any existing root logger config
+    )
+
+
 PROJECT_ROOT_PATH = Path(__file__).resolve().parent.parent
 
 DENSITY_BASE_PATH = (
@@ -90,6 +106,10 @@ CCTV_PATTERN = re.compile(
 )
 
 CCTV_PATTERN_LOOSE = re.compile(r"^[0-9a-fA-F]{8}-\d{6}_\d+_\d+")
+
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff"}
+
+LANE_VEHICLE_CLASSES = {0, 1, 2, 3, 7, 8, 9, 10, 11, 12, 13}
 
 
 # ──────────────────────────────────────────────────────────────────────

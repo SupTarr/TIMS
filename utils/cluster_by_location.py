@@ -50,6 +50,7 @@ from common import (
     group_tiles_by_frame,
     pick_representative,
     pick_representatives,
+    setup_logging,
     time_period,
 )
 
@@ -423,12 +424,7 @@ def main():
         help="Disable structural features (CLIP-only mode)",
     )
     args = parser.parse_args()
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s  %(levelname)-8s  %(message)s",
-        datefmt="%H:%M:%S",
-    )
+    setup_logging()
 
     logger.info("=" * 60)
     logger.info("CCTV Image Clustering by Location")
@@ -571,10 +567,4 @@ def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s  %(levelname)-8s  %(message)s",
-        datefmt="%H:%M:%S",
-    )
-
     main()

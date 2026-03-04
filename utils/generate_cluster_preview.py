@@ -35,6 +35,7 @@ from common import (
     load_road_roi,
     parse_yolo_labels,
     pick_representative,
+    setup_logging,
     time_period,
 )
 
@@ -292,10 +293,5 @@ def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s  %(levelname)-8s  %(message)s",
-        datefmt="%H:%M:%S",
-    )
-
+    setup_logging()
     main()

@@ -15,7 +15,12 @@ Usage:
 import argparse
 import logging
 
-from common import RAW_TRAIN_PATH, TRAIN_BY_LOCATION_PATH
+from common import (
+    IMAGE_EXTENSIONS,
+    RAW_TRAIN_PATH,
+    TRAIN_BY_LOCATION_PATH,
+    setup_logging,
+)
 
 
 def main():
@@ -29,7 +34,7 @@ def main():
     )
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    setup_logging()
     logger = logging.getLogger(__name__)
 
     if not TRAIN_BY_LOCATION_PATH.exists():
@@ -51,11 +56,7 @@ def main():
                 img_dir = loc_dir
 
             for img_path in img_dir.glob("*"):
-                if img_path.is_file() and img_path.suffix.lower() in [
-                    ".jpg",
-                    ".jpeg",
-                    ".png",
-                ]:
+                if img_path.is_file() and img_path.suffix.lower() in IMAGE_EXTENSIONS:
                     valid_filenames.add(img_path.name)
 
     if not valid_filenames:
@@ -71,7 +72,7 @@ def main():
     kept_count = 0
 
     for img_path in RAW_TRAIN_PATH.glob("*"):
-        if img_path.is_file() and img_path.suffix.lower() in [".jpg", ".jpeg", ".png"]:
+        if img_path.is_file() and img_path.suffix.lower() in IMAGE_EXTENSIONS:
             if img_path.name not in valid_filenames:
                 if args.dry_run:
                     logger.info("[DRY RUN] Would delete: %s", img_path.name)
@@ -88,10 +89,4 @@ def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s  %(levelname)-8s  %(message)s",
-        datefmt="%H:%M:%S",
-    )
-
     main()

@@ -42,10 +42,12 @@ from sklearn.neighbors import KernelDensity
 
 from common import (
     LANE_SEG_WEIGHTS_PATH,
+    LANE_VEHICLE_CLASSES,
     ROI_CONFIG_PATH,
     discover_locations,
     parse_yolo_labels,
     save_road_roi,
+    setup_logging,
     time_period,
 )
 
@@ -74,7 +76,6 @@ MIN_LANE_WIDTH_PX = 80
 GAP_FACTOR = 0.3
 DEFAULT_NUM_LANES = 2
 DEFAULT_CARS_PER_LANE = 5
-LANE_VEHICLE_CLASSES = {0, 1, 2, 3, 7, 8, 9, 10, 11, 12, 13}
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -600,11 +601,7 @@ def pick_annotation_image(loc_dir: Path) -> Optional[Path]:
 # Main
 # ──────────────────────────────────────────────────────────────────────
 def main():
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s  %(levelname)-8s  %(message)s",
-        datefmt="%H:%M:%S",
-    )
+    setup_logging()
 
     parser = argparse.ArgumentParser(
         description="Semi-automatic road ROI annotation per camera location"
@@ -754,10 +751,4 @@ def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s  %(levelname)-8s  %(message)s",
-        datefmt="%H:%M:%S",
-    )
-
     main()
