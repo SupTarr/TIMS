@@ -41,6 +41,7 @@ from scipy.signal import find_peaks
 from sklearn.neighbors import KernelDensity
 
 from common import (
+    IMAGE_EXTENSIONS,
     LANE_SEG_WEIGHTS_PATH,
     LANE_VEHICLE_CLASSES,
     ROI_CONFIG_PATH,
@@ -217,7 +218,9 @@ def refine_polygon_with_lane_seg(
 ) -> np.ndarray:
     """Combine label-based polygon with lane-seg mask."""
     images_dir = loc_dir / "images"
-    all_imgs = sorted(images_dir.glob("*.jpg"))
+    all_imgs = sorted(
+        f for f in images_dir.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
+    )
     if not all_imgs:
         return base_polygon
 
@@ -542,7 +545,10 @@ def preview_existing(config_path: Path):
             continue
 
         images_dir = loc_dir / "images"
-        sample_img = next(images_dir.glob("*.jpg"), None)
+        sample_img = next(
+            (f for f in images_dir.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS),
+            None
+        )
         if sample_img is None:
             continue
         img = cv2.imread(str(sample_img))
@@ -584,7 +590,9 @@ def preview_existing(config_path: Path):
 def pick_annotation_image(loc_dir: Path) -> Optional[Path]:
     """Pick a random daytime image (if available) for clearest annotation."""
     images_dir = loc_dir / "images"
-    all_imgs = sorted(images_dir.glob("*.jpg"))
+    all_imgs = sorted(
+        f for f in images_dir.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
+    )
     if not all_imgs:
         return None
 
