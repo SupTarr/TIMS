@@ -44,6 +44,7 @@ from common import (
     LANE_SEG_WEIGHTS_PATH,
     ROI_CONFIG_PATH,
     discover_locations,
+    parse_yolo_labels,
     save_road_roi,
     time_period,
 )
@@ -86,19 +87,17 @@ def load_label_data(labels_dir: Path, img_w: int, img_h: int) -> np.ndarray:
     """
     rows: list[list[float]] = []
     for txt in labels_dir.glob("*.txt"):
-        content = txt.read_text().strip()
-        if not content:
-            continue
-        for line in content.splitlines():
-            parts = line.split()
-            if len(parts) < 5:
-                continue
-            cls = int(parts[0])
-            cx = float(parts[1]) * img_w
-            cy = float(parts[2]) * img_h
-            w = float(parts[3]) * img_w
-            h = float(parts[4]) * img_h
-            rows.append([cls, cx, cy, w, h])
+        boxes = parse_yolo_labels(txt)
+        for cls_id, cx_norm, cy_norm, w_norm, h_norm in boxes:
+            rows.append(
+                [
+                    float(cls_id),
+                    cx_norm * img_w,
+                    cy_norm * img_h,
+                    w_norm * img_w,
+                    h_norm * img_h,
+                ]
+            )
     if not rows:
         return np.empty((0, 5))
     return np.array(rows)
@@ -755,4 +754,10 @@ def main():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(levelname)-8s  %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    
     main()

@@ -33,14 +33,14 @@ def main():
     logger = logging.getLogger(__name__)
 
     if not TRAIN_BY_LOCATION_PATH.exists():
-        logger.error(f"Source directory not found: {TRAIN_BY_LOCATION_PATH}")
+        logger.error("Source directory not found: %s", TRAIN_BY_LOCATION_PATH)
         return
 
     if not RAW_TRAIN_PATH.exists():
-        logger.error(f"Target directory not found: {RAW_TRAIN_PATH}")
+        logger.error("Target directory not found: %s", RAW_TRAIN_PATH)
         return
 
-    logger.info(f"Scanning {TRAIN_BY_LOCATION_PATH}...")
+    logger.info("Scanning %s...", TRAIN_BY_LOCATION_PATH)
 
     valid_filenames = set()
 
@@ -64,9 +64,9 @@ def main():
         )
         return
 
-    logger.info(f"Found {len(valid_filenames)} valid images in train_by_location.")
+    logger.info("Found %d valid images in train_by_location.", len(valid_filenames))
 
-    logger.info(f"Scanning {RAW_TRAIN_PATH}...")
+    logger.info("Scanning %s...", RAW_TRAIN_PATH)
     deleted_count = 0
     kept_count = 0
 
@@ -74,18 +74,24 @@ def main():
         if img_path.is_file() and img_path.suffix.lower() in [".jpg", ".jpeg", ".png"]:
             if img_path.name not in valid_filenames:
                 if args.dry_run:
-                    logger.info(f"[DRY RUN] Would delete: {img_path.name}")
+                    logger.info("[DRY RUN] Would delete: %s", img_path.name)
                 else:
                     img_path.unlink()
-                    logger.info(f"Deleted: {img_path.name}")
+                    logger.info("Deleted: %s", img_path.name)
                 deleted_count += 1
             else:
                 kept_count += 1
 
     logger.info(
-        f"\nSync complete. Deleted {deleted_count} files. Kept {kept_count} files."
+        "\nSync complete. Deleted %d files. Kept %d files.", deleted_count, kept_count
     )
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(levelname)-8s  %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    
     main()

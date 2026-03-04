@@ -97,10 +97,7 @@ def compute_density_ratio(
         return 0.0, 0.0
 
     inside = filter_vehicles_in_roi(boxes, roi_polygon, img_w, img_h)
-
-    total_weight = 0.0
-    for cls_id, _cx, _cy, _w, _h in inside:
-        total_weight += CLASS_WEIGHTS.get(cls_id, 0.0)
+    total_weight = sum(CLASS_WEIGHTS.get(b[0], 0.0) for b in inside)
 
     return total_weight / capacity, total_weight
 
@@ -429,4 +426,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(levelname)-8s  %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    
     main()
