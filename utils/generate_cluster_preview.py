@@ -15,6 +15,7 @@ Usage:
 """
 
 import argparse
+import logging
 from pathlib import Path
 
 import cv2
@@ -27,13 +28,17 @@ from PIL import Image
 
 from common import (
     TRAIN_BY_LOCATION_PATH as BASE_DIR,
+    CLASS_NAMES,
     ROI_CONFIG_PATH,
+    discover_locations,
     group_tiles_by_frame,
     load_road_roi,
+    parse_yolo_labels,
     pick_representative,
     time_period,
-    discover_locations,
 )
+
+logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────────────
 # Configuration
@@ -42,23 +47,6 @@ from common import (
 PREVIEW_SAMPLES = 5
 OVERLAY_ALPHA = 0.30
 ROI_COLOR = (0, 200, 0)
-
-CLASS_NAMES = {
-    0: "full_truck",
-    1: "full_trailer",
-    2: "semi_trailer",
-    3: "modified_car",
-    4: "pedestrian",
-    5: "bicycle",
-    6: "motorcycle",
-    7: "car",
-    8: "car_7",
-    9: "small_bus",
-    10: "medium_bus",
-    11: "large_bus",
-    12: "pickup",
-    13: "truck",
-}
 
 _PALETTE = [
     (255, 0, 0),
@@ -106,25 +94,6 @@ def overlay_roi(img_rgb: np.ndarray, polygon: np.ndarray) -> np.ndarray:
     for pt in polygon:
         cv2.circle(vis, tuple(pt), 5, (255, 0, 0), -1, cv2.LINE_AA)
     return vis
-
-
-def load_yolo_labels(label_path: Path) -> list[tuple[int, float, float, float, float]]:
-    """
-    Read a YOLO label file.
-    Returns list of (class_id, cx, cy, w, h) with normalised coords.
-    """
-    if not label_path.exists():
-        return []
-    boxes = []
-    for line in label_path.read_text().strip().splitlines():
-        parts = line.strip().split()
-        if len(parts) < 5:
-            continue
-        cls_id = int(parts[0])
-        cx, cy, w, h = map(float, parts[1:5])
-        boxes.append((cls_id, cx, cy, w, h))
-    return boxes
-
 
 def draw_boxes(img_rgb: np.ndarray, boxes: list, thickness: int = 2) -> np.ndarray:
     """Draw YOLO bounding boxes with class labels on an RGB image."""
@@ -196,34 +165,36 @@ def main():
     draw_roi_flag = not args.no_roi
     draw_boxes_flag = not args.no_boxes
 
-    print("=" * 60)
-    print("Generate Cluster Preview from Location Folders")
-    print("=" * 60)
-    print(f"Base dir: {BASE_DIR}")
-    print(f"Draw ROI: {draw_roi_flag}  |  Draw boxes: {draw_boxes_flag}")
+    logger.info("=" * 60)
+    logger.info("Generate Cluster Preview from Location Folders")
+    logger.info("=" * 60)
+    logger.info("Base dir: %s", BASE_DIR)
+    logger.info("Draw ROI: %s  |  Draw boxes: %s", draw_roi_flag, draw_boxes_flag)
 
     if not BASE_DIR.exists():
-        print(f"ERROR: Base directory not found: {BASE_DIR}")
+        logger.error("Base directory not found: %s", BASE_DIR)
         return
 
     roi_map: dict[str, np.ndarray] = {}
     if draw_roi_flag:
         try:
             roi_map = load_road_roi(ROI_CONFIG_PATH)
-            print(f"Loaded {len(roi_map)} ROI polygon(s) from {ROI_CONFIG_PATH}")
+            logger.info("Loaded %d ROI polygon(s) from %s", len(roi_map), ROI_CONFIG_PATH)
         except FileNotFoundError:
-            print(
-                f"WARNING: ROI config not found ({ROI_CONFIG_PATH}), skipping ROI overlay"
+            logger.warning(
+                "ROI config not found (%s), skipping ROI overlay", ROI_CONFIG_PATH
             )
 
     locations = discover_locations(BASE_DIR)
     n_clusters = len(locations)
-    print(
-        f"Found {n_clusters} locations: {[f'location_{lid}' for lid, _ in locations]}"
+    logger.info(
+        "Found %d locations: %s",
+        n_clusters,
+        [f"location_{lid}" for lid, _ in locations],
     )
 
     if n_clusters == 0:
-        print("No location folders found. Nothing to do.")
+        logger.info("No location folders found. Nothing to do.")
         return
 
     loc_data = {}
@@ -236,15 +207,15 @@ def main():
         n_frames = len(frames)
         n_tiles = sum(len(v) for v in frames.values())
         loc_data[loc_id] = {"frames": frames, "n_frames": n_frames, "n_tiles": n_tiles}
-        print(f"  location_{loc_id}: {n_frames} frames ({n_tiles} tiles)")
+        logger.info("  location_%d: %d frames (%d tiles)", loc_id, n_frames, n_tiles)
 
-    print(f"\nGenerating preview grid ({n_clusters} rows x {n_samples} cols)...")
+    logger.info("Generating preview grid (%d rows x %d cols)...", n_clusters, n_samples)
 
     fig, axes = plt.subplots(
         n_clusters, n_samples, figsize=(4 * n_samples, 3 * n_clusters), squeeze=False
     )
     fig.suptitle(
-        "Cluster Preview – ROI + Detections (rows = locations)", fontsize=14, y=1.01
+        "Cluster Preview - ROI + Detections (rows = locations)", fontsize=14, y=1.01
     )
 
     for row_idx, (loc_id, _) in enumerate(locations):
@@ -273,7 +244,7 @@ def main():
 
                     if draw_boxes_flag:
                         lbl_path = label_path_for_image(rep["path"])
-                        boxes = load_yolo_labels(lbl_path)
+                        boxes = parse_yolo_labels(lbl_path)
                         if boxes:
                             img = draw_boxes(img, boxes)
 
@@ -289,7 +260,7 @@ def main():
                     )
                 period = time_period(ts)
                 n_boxes = (
-                    len(load_yolo_labels(label_path_for_image(rep["path"])))
+                    len(parse_yolo_labels(label_path_for_image(rep["path"])))
                     if draw_boxes_flag
                     else 0
                 )
@@ -312,10 +283,11 @@ def main():
     fig.savefig(save_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
-    print(f"\nPreview saved to {save_path}")
-    print(f"File size: {save_path.stat().st_size / 1024:.1f} KB")
-    print("Done!")
+    logger.info("Preview saved to %s", save_path)
+    logger.info("File size: %.1f KB", save_path.stat().st_size / 1024)
+    logger.info("Done!")
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     main()

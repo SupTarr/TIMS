@@ -168,8 +168,7 @@ def extract_structural_batch(
         avg_feat = np.mean(feats, axis=0)
         all_features.append(avg_feat)
         if (i + 1) % 20 == 0 or i + 1 == total:
-            print(f"  Structural features: {i + 1}/{total}", end="\r")
-    print()
+            logger.info("  Structural features: %d/%d", i + 1, total)
     return np.array(all_features)
 
 
@@ -234,9 +233,7 @@ def extract_clip_embeddings(
         all_features[i : i + len(batch)] = feat_avg
 
         done = min(i + batch_size, total_tiles)
-        print(f"  CLIP: {done}/{total_tiles} tiles (x2 with flip aug)", end="\r")
-
-    print()
+        logger.info("  CLIP: %d/%d tiles (x2 with flip aug)", done, total_tiles)
 
     n_frames = len(ts_list)
     frame_embeddings = np.zeros((n_frames, embed_dim), dtype=np.float32)
@@ -259,7 +256,7 @@ def extract_clip_embeddings(
 def find_best_k(embeddings: np.ndarray, k_range: range) -> int:
     """Sweep Agglomerative clustering over k_range, return K with best silhouette."""
     best_k, best_score = 2, -1.0
-    print(f"  Silhouette sweep K={k_range.start}..{k_range.stop - 1}:")
+    logger.info("  Silhouette sweep K=%d..%d:", k_range.start, k_range.stop - 1)
     for k in k_range:
         if k >= len(embeddings):
             break
@@ -271,8 +268,8 @@ def find_best_k(embeddings: np.ndarray, k_range: range) -> int:
             best_score = score
             best_k = k
             marker = " <-- best so far"
-        print(f"    K={k:2d}  silhouette={score:.4f}{marker}")
-    print(f"  => Best K = {best_k} (silhouette = {best_score:.4f})")
+        logger.info("    K=%2d  silhouette=%.4f%s", k, score, marker)
+    logger.info("  => Best K = %d (silhouette = %.4f)", best_k, best_score)
     return best_k
 
 
@@ -331,7 +328,7 @@ def generate_preview(
     save_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(save_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print(f"  Preview saved to {save_path}")
+    logger.info("  Preview saved to %s", save_path)
 
 
 def copy_to_location_folders(
@@ -382,7 +379,7 @@ def write_csv(
                         is_night,
                     ]
                 )
-    print(f"  Metadata saved to {csv_path}")
+    logger.info("  Metadata saved to %s", csv_path)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -427,40 +424,48 @@ def main():
     )
     args = parser.parse_args()
 
-    print("=" * 60)
-    print("CCTV Image Clustering by Location")
-    print("(CLIP + Structural Features, IR-Optimized)")
-    print("=" * 60)
-    print(f"\nSource (READ-ONLY): {SRC_DIR}")
-    print(f"Output:             {DST_DIR}")
-    print(f"Tiles/frame:        {args.tiles_per_frame}")
-    print(
-        f"Structural weight:  {'disabled' if args.no_structural else args.structural_weight}"
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(levelname)-8s  %(message)s",
+        datefmt="%H:%M:%S",
     )
-    print(f"CLAHE:              enabled")
-    print(f"Flip augmentation:  enabled")
+
+    logger.info("=" * 60)
+    logger.info("CCTV Image Clustering by Location")
+    logger.info("(CLIP + Structural Features, IR-Optimized)")
+    logger.info("=" * 60)
+    logger.info("Source (READ-ONLY): %s", SRC_DIR)
+    logger.info("Output:             %s", DST_DIR)
+    logger.info("Tiles/frame:        %d", args.tiles_per_frame)
+    logger.info(
+        "Structural weight:  %s",
+        "disabled" if args.no_structural else args.structural_weight,
+    )
+    logger.info("CLAHE:              enabled")
+    logger.info("Flip augmentation:  enabled")
 
     if not SRC_DIR.exists():
-        print(f"\nERROR: Source directory not found: {SRC_DIR}")
+        logger.error("Source directory not found: %s", SRC_DIR)
         sys.exit(1)
 
     src_count_before = len([f for f in SRC_DIR.iterdir() if f.is_file()])
-    print(f"\nSource file count (before): {src_count_before}")
+    logger.info("Source file count (before): %d", src_count_before)
 
-    print("\n[1/8] Grouping tiles by frame (timestamp)...")
+    logger.info("[1/8] Grouping tiles by frame (timestamp)...")
     frames = group_tiles_by_frame(SRC_DIR)
     n_frames = len(frames)
     n_tiles = sum(len(v) for v in frames.values())
-    print(f"  {n_tiles} tiles across {n_frames} frames")
+    logger.info("  %d tiles across %d frames", n_tiles, n_frames)
 
     ts_list = sorted(frames.keys())
     device = select_device(args.device)
-    print(f"\n[2/8] Loading CLIP ({CLIP_MODEL}) on {device}...")
+    logger.info("[2/8] Loading CLIP (%s) on %s...", CLIP_MODEL, device)
     model, preprocess = clip.load(CLIP_MODEL, device=device)
     model.eval()
 
-    print(
-        f"\n[3/8] Extracting CLIP embeddings (CLAHE + {args.tiles_per_frame} tiles/frame + flip)..."
+    logger.info(
+        "[3/8] Extracting CLIP embeddings (CLAHE + %d tiles/frame + flip)...",
+        args.tiles_per_frame,
     )
     clip_embeddings = extract_clip_embeddings(
         frames,
@@ -472,88 +477,99 @@ def main():
         args.tiles_per_frame,
     )
     clip_embeddings = normalize(clip_embeddings)
-    print(f"  CLIP shape: {clip_embeddings.shape}")
+    logger.info("  CLIP shape: %s", clip_embeddings.shape)
 
     if args.pca > 0 and args.pca < clip_embeddings.shape[1]:
-        print(f"\n[4/8] PCA reduction {clip_embeddings.shape[1]} -> {args.pca} dims...")
+        logger.info(
+            "[4/8] PCA reduction %d -> %d dims...",
+            clip_embeddings.shape[1],
+            args.pca,
+        )
         pca = PCA(n_components=args.pca, random_state=42)
         clip_reduced = pca.fit_transform(clip_embeddings)
         variance = sum(pca.explained_variance_ratio_) * 100
-        print(f"  Explained variance: {variance:.1f}%")
+        logger.info("  Explained variance: %.1f%%", variance)
     else:
-        print(f"\n[4/8] PCA skipped")
+        logger.info("[4/8] PCA skipped")
         clip_reduced = clip_embeddings
 
     clip_reduced = normalize(clip_reduced)
 
     if not args.no_structural:
-        print(
-            f"\n[5/8] Extracting structural features (edge histograms + spatial density)..."
+        logger.info(
+            "[5/8] Extracting structural features (edge histograms + spatial density)..."
         )
         struct_features = extract_structural_batch(
             frames, ts_list, args.tiles_per_frame
         )
         struct_features = normalize(struct_features)
-        print(f"  Structural shape: {struct_features.shape}")
+        logger.info("  Structural shape: %s", struct_features.shape)
 
         w_clip = 1.0 - args.structural_weight
         w_struct = args.structural_weight
         embeddings = np.hstack([clip_reduced * w_clip, struct_features * w_struct])
         embeddings = normalize(embeddings)
-        print(
-            f"  Fused shape: {embeddings.shape} (CLIP x{w_clip:.1f} + Struct x{w_struct:.1f})"
+        logger.info(
+            "  Fused shape: %s (CLIP x%.1f + Struct x%.1f)",
+            embeddings.shape,
+            w_clip,
+            w_struct,
         )
     else:
-        print(f"\n[5/8] Structural features skipped (--no-structural)")
+        logger.info("[5/8] Structural features skipped (--no-structural)")
         embeddings = clip_reduced
 
     if args.n_clusters is not None:
         n_clusters = args.n_clusters
-        print(f"\n[6/8] Clustering with K={n_clusters} (user-specified)...")
+        logger.info("[6/8] Clustering with K=%d (user-specified)...", n_clusters)
     else:
-        print(f"\n[6/8] Auto-detecting optimal K (Agglomerative + cosine)...")
+        logger.info("[6/8] Auto-detecting optimal K (Agglomerative + cosine)...")
         n_clusters = find_best_k(embeddings, K_RANGE)
 
-    print(f"\n[7/8] Final clustering (Agglomerative, cosine, K={n_clusters})...")
+    logger.info("[7/8] Final clustering (Agglomerative, cosine, K=%d)...", n_clusters)
     labels = cluster_frames(embeddings, n_clusters)
 
     ts_to_cluster = {}
     for i, ts in enumerate(ts_list):
         ts_to_cluster[ts] = int(labels[i])
 
-    print(f"\n  Cluster distribution:")
+    logger.info("  Cluster distribution:")
     for cid in range(n_clusters):
         cluster_timestamps = [ts for ts, c in ts_to_cluster.items() if c == cid]
         tile_count = sum(len(frames[ts]) for ts in cluster_timestamps)
         day_count = sum(1 for ts in cluster_timestamps if 6 <= int(ts[:2]) < 18)
         night_count = len(cluster_timestamps) - day_count
-        print(
-            f"    location_{cid}: {len(cluster_timestamps)} frames "
-            f"({tile_count} tiles) [day={day_count}, night={night_count}]"
+        logger.info(
+            "    location_%d: %d frames (%d tiles) [day=%d, night=%d]",
+            cid,
+            len(cluster_timestamps),
+            tile_count,
+            day_count,
+            night_count,
         )
 
-    print(f"\n[8/8] Generating outputs...")
+    logger.info("[8/8] Generating outputs...")
 
     if DST_DIR.exists():
-        print(f"  Clearing previous output at {DST_DIR}...")
+        logger.info("  Clearing previous output at %s...", DST_DIR)
         shutil.rmtree(DST_DIR)
 
     total_copied = copy_to_location_folders(frames, ts_to_cluster, DST_DIR)
-    print(f"  Copied {total_copied} tiles into {n_clusters} location folders")
+    logger.info("  Copied %d tiles into %d location folders", total_copied, n_clusters)
 
     generate_preview(frames, ts_to_cluster, n_clusters, CLUSTER_PREVIEW_PATH)
     write_csv(frames, ts_to_cluster, CLUSTER_CSV_PATH)
 
     src_count_after = len([f for f in SRC_DIR.iterdir() if f.is_file()])
-    print(f"\n{'=' * 60}")
-    print(f"Source file count (before): {src_count_before}")
-    print(f"Source file count (after):  {src_count_after}")
+    logger.info("=" * 60)
+    logger.info("Source file count (before): %d", src_count_before)
+    logger.info("Source file count (after):  %d", src_count_after)
     if src_count_before == src_count_after:
-        print("✓ Source directory UNCHANGED — safe.")
+        logger.info("✓ Source directory UNCHANGED — safe.")
     else:
-        print("✗ WARNING: Source file count changed! Investigate immediately.")
-    print(f"{'=' * 60}")
-    print("Done!")
+        logger.warning("✗ Source file count changed! Investigate immediately.")
+    logger.info("=" * 60)
+    logger.info("Done!")
 
 
 if __name__ == "__main__":

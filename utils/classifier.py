@@ -1,46 +1,59 @@
-import os
+#!/usr/bin/env python3
+"""
+Classify images by filename pattern (CCTV vs Google) and copy CCTV
+images to the raw/train directory.
+
+Usage:
+    python classifier.py
+"""
+
+import logging
 import shutil
-import glob
 
-from common import CCTV_PATTERN_LOOSE, TIMS_FINAL_IMAGES_PATH, RAW_TRAIN_PATH
+from common import CCTV_PATTERN_LOOSE, RAW_TRAIN_PATH, TIMS_FINAL_IMAGES_PATH
 
-SRC_DIR = str(TIMS_FINAL_IMAGES_PATH)
-DST_DIR = str(RAW_TRAIN_PATH)
+logger = logging.getLogger(__name__)
+
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff"}
 
 
-def classify_by_filename(filename):
+def classify_by_filename(filename: str) -> str:
     """
     Classify by filename pattern:
       - UUID + numeric timestamp pattern -> CCTV
       - Anything else -> Google
     """
-    name = os.path.splitext(filename)[0]
-    if CCTV_PATTERN_LOOSE.match(name):
+    stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+    if CCTV_PATTERN_LOOSE.match(stem):
         return "CCTV"
     return "Google"
 
 
-if __name__ == "__main__":
-    os.makedirs(DST_DIR, exist_ok=True)
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    image_extensions = ("*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tiff")
-    image_files = []
-    for ext in image_extensions:
-        image_files.extend(glob.glob(os.path.join(SRC_DIR, ext)))
-    image_files.sort()
+    if not TIMS_FINAL_IMAGES_PATH.is_dir():
+        logger.error("Source directory not found: %s", TIMS_FINAL_IMAGES_PATH)
+        return
+
+    RAW_TRAIN_PATH.mkdir(parents=True, exist_ok=True)
+
+    image_files = sorted(
+        f for f in TIMS_FINAL_IMAGES_PATH.iterdir()
+        if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
+    )
 
     total = len(image_files)
-    print(f"Found {total} images in source directory.")
+    logger.info("Found %d images in source directory.", total)
 
     moved_count = 0
     google_count = 0
 
     for i, img_path in enumerate(image_files, 1):
-        filename = os.path.basename(img_path)
-        category = classify_by_filename(filename)
+        category = classify_by_filename(img_path.name)
 
         if category == "CCTV":
-            shutil.copy2(img_path, os.path.join(DST_DIR, filename))
+            shutil.copy2(img_path, RAW_TRAIN_PATH / img_path.name)
             moved_count += 1
             status = "-> Copied to Raw"
         else:
@@ -48,9 +61,14 @@ if __name__ == "__main__":
             status = "-> Skipped (Google)"
 
         if i % 500 == 0 or i == total:
-            print(f"[{i}/{total}] {filename}: {category} {status}")
+            logger.info("[%d/%d] %s: %s %s", i, total, img_path.name, category, status)
 
-    print("\n" + "=" * 50)
-    print(f"Done! Total: {total}")
-    print(f"  CCTV (coppied):    {moved_count}")
-    print(f"  Google (skipped): {google_count}")
+    logger.info("")
+    logger.info("=" * 50)
+    logger.info("Done! Total: %d", total)
+    logger.info("  CCTV (copied):    %d", moved_count)
+    logger.info("  Google (skipped): %d", google_count)
+
+
+if __name__ == "__main__":
+    main()

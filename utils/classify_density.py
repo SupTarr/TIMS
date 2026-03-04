@@ -25,20 +25,20 @@ Usage:
 
 import argparse
 import csv
-import json
 import logging
 import shutil
 import sys
 from pathlib import Path
 
-import cv2
 import numpy as np
 
 from common import (
     DENSITY_OUTPUT_PATH as OUTPUT_DIR,
-    ROI_CONFIG_PATH,
     TRAIN_BY_LOCATION_PATH,
     discover_locations,
+    filter_vehicles_in_roi,
+    load_road_roi,
+    parse_yolo_labels,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,35 +76,6 @@ def classify_ratio(r: float) -> str:
         return "full"
 
 
-def load_roi_config(config_path: Path = ROI_CONFIG_PATH) -> dict:
-    """Load raw road_roi.json with polygon, image_size, num_lanes, cars_per_lane."""
-    if not config_path.exists():
-        raise FileNotFoundError(f"ROI config not found: {config_path}")
-    return json.loads(config_path.read_text())
-
-
-def parse_yolo_labels(label_path: Path) -> list[tuple[int, float, float, float, float]]:
-    """
-    Parse YOLO label file into list of (class_id, cx, cy, w, h).
-    Returns empty list for empty / missing files.
-    """
-    if not label_path.exists():
-        return []
-    boxes: list[tuple[int, float, float, float, float]] = []
-    for line in label_path.read_text().strip().splitlines():
-        parts = line.strip().split()
-        if len(parts) >= 5:
-            cls_id = int(parts[0])
-            cx, cy, w, h = (
-                float(parts[1]),
-                float(parts[2]),
-                float(parts[3]),
-                float(parts[4]),
-            )
-            boxes.append((cls_id, cx, cy, w, h))
-    return boxes
-
-
 def compute_density_ratio(
     boxes: list[tuple[int, float, float, float, float]],
     roi_polygon: np.ndarray,
@@ -114,7 +85,7 @@ def compute_density_ratio(
     cars_per_lane: int,
 ) -> tuple[float, float]:
     """
-    Compute density ratio = total_weight / (num_lanes x cars_per_lane).
+    Compute density ratio = total_weight / (num_lanes × cars_per_lane).
 
     Only vehicles whose bbox centre falls inside the ROI polygon are counted.
     Each vehicle class has a weight factor defined in CLASS_WEIGHTS.
@@ -125,11 +96,10 @@ def compute_density_ratio(
     if capacity == 0 or len(boxes) == 0:
         return 0.0, 0.0
 
-    roi_contour = roi_polygon.reshape(-1, 1, 2).astype(np.float32)
+    inside = filter_vehicles_in_roi(boxes, roi_polygon, img_w, img_h)
 
     total_weight = 0.0
-    for cls_id, cx, cy, _w, _h in boxes:
-        px, py = cx * img_w, cy * img_h
+    for cls_id, _cx, _cy, _w, _h in inside:
         total_weight += CLASS_WEIGHTS.get(cls_id, 0.0)
 
     return total_weight / capacity, total_weight
@@ -145,7 +115,7 @@ def classify_density(
     dry_run: bool = False, verbose: bool = False, histogram: bool = False
 ) -> None:
     """Iterate over every location, classify each image, copy to output."""
-    roi_config = load_roi_config()
+    roi_map = load_road_roi()
 
     locations = discover_locations()
     if not locations:
@@ -164,12 +134,12 @@ def classify_density(
     for loc_id, loc_dir in locations:
         loc_name = f"location_{loc_id}"
 
-        if loc_name not in roi_config:
+        if loc_name not in roi_map:
             logger.warning("No ROI config for %s — skipping", loc_name)
             continue
 
-        entry = roi_config[loc_name]
-        roi_polygon = np.array(entry["polygon"], dtype=np.int32)
+        entry = roi_map[loc_name]
+        roi_polygon = entry["polygon"]
         img_w, img_h = entry["image_size"]
 
         num_lanes = entry.get("num_lanes")
@@ -248,27 +218,28 @@ def classify_density(
 
     total = sum(stats.values())
     prefix = "DRY RUN — " if dry_run else ""
-    print(f"\n{'=' * 60}")
-    print(f"{prefix}Classification Summary")
-    print(f"{'=' * 60}")
+    logger.info("")
+    logger.info("=" * 60)
+    logger.info("%sClassification Summary", prefix)
+    logger.info("=" * 60)
     for cls in DENSITY_CLASSES:
         pct = (stats[cls] / total * 100) if total > 0 else 0
-        print(f"  {cls:>8s}: {stats[cls]:5d} images ({pct:5.1f}%)")
-    print(f"  {'TOTAL':>8s}: {total:5d} images")
-    print(f"{'=' * 60}")
+        logger.info("  %8s: %5d images (%5.1f%%)", cls, stats[cls], pct)
+    logger.info("  %8s: %5d images", "TOTAL", total)
+    logger.info("=" * 60)
 
     if not dry_run:
-        print(f"\nImages copied to: {OUTPUT_DIR}")
+        logger.info("Images copied to: %s", OUTPUT_DIR)
 
 
 # ──────────────────────────────────────────────────────────────────────
 # Histogram / distribution helpers
 # ──────────────────────────────────────────────────────────────────────
 def _print_histogram(records: list[dict], bin_width: float = 0.05) -> None:
-    """Print an ASCII histogram of density ratios."""
+    """Log an ASCII histogram of density ratios."""
     ratios = [r["density_ratio"] for r in records]
     if not ratios:
-        print("No data.")
+        logger.info("No data.")
         return
 
     max_ratio = max(ratios)
@@ -286,16 +257,19 @@ def _print_histogram(records: list[dict], bin_width: float = 0.05) -> None:
     bar_max = max(counts) if counts else 1
     bar_width = 50
 
-    print(f"\n{'=' * 70}")
-    print("Density Ratio Histogram")
-    print(f"{'=' * 70}")
-    print(f"  Total images: {len(ratios)}")
-    print(
-        f"  Min: {min(ratios):.3f}  Max: {max(ratios):.3f}  "
-        f"Mean: {sum(ratios)/len(ratios):.3f}  "
-        f"Median: {sorted(ratios)[len(ratios)//2]:.3f}"
+    logger.info("")
+    logger.info("=" * 70)
+    logger.info("Density Ratio Histogram")
+    logger.info("=" * 70)
+    logger.info("  Total images: %d", len(ratios))
+    logger.info(
+        "  Min: %.3f  Max: %.3f  Mean: %.3f  Median: %.3f",
+        min(ratios),
+        max(ratios),
+        sum(ratios) / len(ratios),
+        sorted(ratios)[len(ratios) // 2],
     )
-    print()
+    logger.info("")
 
     for (lo, hi), cnt in zip(bins, counts):
         if cnt == 0 and lo > max_ratio + bin_width:
@@ -303,15 +277,18 @@ def _print_histogram(records: list[dict], bin_width: float = 0.05) -> None:
         bar_len = int(cnt / bar_max * bar_width) if bar_max > 0 else 0
         bar = "█" * bar_len
         pct_of_total = cnt / len(ratios) * 100 if ratios else 0
-        print(f"  [{lo:5.2f}-{hi:5.2f}) {cnt:5d} ({pct_of_total:5.1f}%) {bar}")
+        logger.info("  [%5.2f-%5.2f) %5d (%5.1f%%) %s", lo, hi, cnt, pct_of_total, bar)
 
-    print(f"\n  Current thresholds: " f"light<0.4 | medium<0.65 | high<0.9 | full≥0.9")
-    print()
+    logger.info("")
+    logger.info(
+        "  Current thresholds: light<0.4 | medium<0.65 | high<0.9 | full≥0.9"
+    )
+    logger.info("")
 
     sorted_ratios = sorted(ratios)
     for q in (10, 25, 50, 75, 90, 95, 99):
         idx = min(int(len(sorted_ratios) * q / 100), len(sorted_ratios) - 1)
-        print(f"  P{q:02d}: {sorted_ratios[idx]:6.3f}")
+        logger.info("  P%02d: %6.3f", q, sorted_ratios[idx])
 
 
 def _describe_distribution(records: list[dict]) -> None:
@@ -360,29 +337,41 @@ def _describe_distribution(records: list[dict]) -> None:
     else:
         spread_desc = "very wide"
 
-    print(f"\n{'=' * 70}")
-    print("Distribution Description")
-    print(f"{'=' * 70}")
-    print(f"\n  The dataset contains {n} images across {len(loc_means)} locations.")
-    print(
-        f"  Density ratios range from {sorted_ratios[0]:.3f} to "
-        f"{sorted_ratios[-1]:.3f} with a mean of {mean:.3f} "
-        f"(median {median:.3f}, std {std:.3f})."
+    logger.info("")
+    logger.info("=" * 70)
+    logger.info("Distribution Description")
+    logger.info("=" * 70)
+    logger.info("")
+    logger.info("  The dataset contains %d images across %d locations.", n, len(loc_means))
+    logger.info(
+        "  Density ratios range from %.3f to %.3f with a mean of %.3f "
+        "(median %.3f, std %.3f).",
+        sorted_ratios[0],
+        sorted_ratios[-1],
+        mean,
+        median,
+        std,
     )
-    print(f"  The distribution is {skew_desc} with a {spread_desc} spread.")
-    print(f"  The interquartile range (Q1-Q3) is {q1:.3f}-{q3:.3f} (IQR={iqr:.3f}).")
-    print(
-        f"\n  The dominant class is '{dominant_class}' with "
-        f"{class_counts[dominant_class]} images ({dominant_pct:.1f}% of total)."
+    logger.info("  The distribution is %s with a %s spread.", skew_desc, spread_desc)
+    logger.info(
+        "  The interquartile range (Q1-Q3) is %.3f-%.3f (IQR=%.3f).", q1, q3, iqr
     )
-    print(f"  Class breakdown:")
+    logger.info(
+        "  The dominant class is '%s' with %d images (%.1f%% of total).",
+        dominant_class,
+        class_counts[dominant_class],
+        dominant_pct,
+    )
+    logger.info("  Class breakdown:")
     for cls in DENSITY_CLASSES:
         cnt = class_counts.get(cls, 0)
         pct = cnt / n * 100
-        print(f"    {cls:>8s}: {cnt:5d} ({pct:5.1f}%)")
-    print(f"\n  Busiest location:  {busiest} (avg ratio {loc_avg[busiest]:.3f})")
-    print(f"  Quietest location: {quietest} (avg ratio {loc_avg[quietest]:.3f})")
-    print()
+        logger.info("    %8s: %5d (%5.1f%%)", cls, cnt, pct)
+    logger.info("  Busiest location:  %s (avg ratio %.3f)", busiest, loc_avg[busiest])
+    logger.info(
+        "  Quietest location: %s (avg ratio %.3f)", quietest, loc_avg[quietest]
+    )
+    logger.info("")
 
 
 def _export_csv(records: list[dict]) -> None:
@@ -403,7 +392,7 @@ def _export_csv(records: list[dict]) -> None:
         )
         writer.writeheader()
         writer.writerows(records)
-    print(f"CSV exported to: {csv_path}")
+    logger.info("CSV exported to: %s", csv_path)
 
 
 # ──────────────────────────────────────────────────────────────────────

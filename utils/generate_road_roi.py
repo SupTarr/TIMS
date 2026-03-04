@@ -393,9 +393,9 @@ def prompt_positive_int(prompt_text: str, default: int) -> int:
             val = int(raw)
             if val >= 1:
                 return val
-            print("  Please enter a positive integer.")
+            logger.info("  Please enter a positive integer.")
         except ValueError:
-            print("  Please enter a valid integer.")
+            logger.warning("  Please enter a valid integer.")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -529,7 +529,7 @@ class ROIAnnotator:
 def preview_existing(config_path: Path):
     """Display existing ROI polygons for each location in sequence."""
     if not config_path.exists():
-        print(f"No ROI config found at {config_path}")
+        logger.warning("No ROI config found at %s", config_path)
         return
     data = json.loads(config_path.read_text())
     locations = discover_locations()
@@ -538,7 +538,7 @@ def preview_existing(config_path: Path):
         loc_name = f"location_{loc_id}"
         entry = data.get(loc_name)
         if not entry or not entry.get("polygon"):
-            print(f"{loc_name}: no ROI defined, skipping")
+            logger.info("%s: no ROI defined, skipping", loc_name)
             continue
 
         images_dir = loc_dir / "images"
@@ -571,7 +571,7 @@ def preview_existing(config_path: Path):
         cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(WINDOW_NAME, min(img.shape[1], 1600), min(img.shape[0], 900))
         cv2.imshow(WINDOW_NAME, img)
-        print(f"Showing {loc_name} — press any key for next, 'q' to quit")
+        logger.info("Showing %s — press any key for next, 'q' to quit", loc_name)
         key = cv2.waitKey(0) & 0xFF
         if key == ord("q"):
             break
@@ -645,22 +645,26 @@ def main():
     if args.location is not None:
         locations = [(lid, ld) for lid, ld in locations if lid == args.location]
         if not locations:
-            print(f"ERROR: location_{args.location} not found")
+            logger.error("location_%d not found", args.location)
             sys.exit(1)
 
-    print("=" * 60)
-    print("Road ROI Annotation Tool")
-    print("=" * 60)
-    print(f"Locations: {[f'location_{lid}' for lid, _ in locations]}")
-    print(f"Auto-suggest: {'OFF' if args.no_auto else 'ON (labels heatmap)'}")
-    print(f"Lane-seg refinement: {'OFF' if args.no_lane_seg else 'ON'}")
-    print(f"Output: {config_path}")
-    print()
+    logger.info("=" * 60)
+    logger.info("Road ROI Annotation Tool")
+    logger.info("=" * 60)
+    logger.info("Locations: %s", [f"location_{lid}" for lid, _ in locations])
+    logger.info(
+        "Auto-suggest: %s", "OFF" if args.no_auto else "ON (labels heatmap)"
+    )
+    logger.info(
+        "Lane-seg refinement: %s", "OFF" if args.no_lane_seg else "ON"
+    )
+    logger.info("Output: %s", config_path)
+    logger.info("")
 
     existing: dict[str, dict] = {}
     if config_path.exists():
         existing = json.loads(config_path.read_text())
-        print(f"Loaded existing config with {len(existing)} locations")
+        logger.info("Loaded existing config with %d locations", len(existing))
 
     lane_model = None
     if not args.no_auto and not args.no_lane_seg:
@@ -668,23 +672,23 @@ def main():
 
     for loc_id, loc_dir in locations:
         loc_name = f"location_{loc_id}"
-        print(f"\n{'─' * 40}")
-        print(f"Processing {loc_name}")
-        print(f"{'─' * 40}")
+        logger.info("─" * 40)
+        logger.info("Processing %s", loc_name)
+        logger.info("─" * 40)
 
         img_path = pick_annotation_image(loc_dir)
         if img_path is None:
-            print(f"  No images found in {loc_name}, skipping")
+            logger.warning("  No images found in %s, skipping", loc_name)
             continue
 
         pil_img = Image.open(img_path)
         img_w, img_h = pil_img.size
         cv_img = cv2.imread(str(img_path))
         if cv_img is None:
-            print(f"  Failed to read {img_path.name}, skipping")
+            logger.warning("  Failed to read %s, skipping", img_path.name)
             continue
 
-        print(f"  Image: {img_path.name} ({img_w}x{img_h})")
+        logger.info("  Image: %s (%dx%d)", img_path.name, img_w, img_h)
 
         if args.no_auto:
             suggested_poly = np.empty((0, 2), dtype=np.int32)
@@ -696,19 +700,21 @@ def main():
                 )
 
         if len(suggested_poly) > 0:
-            print(f"  Auto-suggested polygon: {len(suggested_poly)} vertices")
+            logger.info(
+                "  Auto-suggested polygon: %d vertices", len(suggested_poly)
+            )
         else:
-            print("  No auto-suggestion available — draw manually")
+            logger.info("  No auto-suggestion available — draw manually")
 
         annotator = ROIAnnotator(cv_img, suggested_poly, title=loc_name)
         result = annotator.run()
 
         if annotator.quit:
-            print("\nQuitting early — saving progress...")
+            logger.info("Quitting early — saving progress...")
             break
 
         if result is None:
-            print(f"  {loc_name}: skipped")
+            logger.info("  %s: skipped", loc_name)
             continue
 
         result_poly = np.array(result, dtype=np.int32)
@@ -724,7 +730,9 @@ def main():
         default_lanes = prev.get("num_lanes", auto_lanes)
         default_cpl = prev.get("cars_per_lane", auto_cpl)
 
-        print(f"\n  Auto-estimated: {auto_lanes} lanes, {auto_cpl} cars/lane")
+        logger.info(
+            "  Auto-estimated: %d lanes, %d cars/lane", auto_lanes, auto_cpl
+        )
         num_lanes = prompt_positive_int(
             f"  Number of lanes [{default_lanes}]: ", default_lanes
         )
@@ -733,9 +741,11 @@ def main():
         )
 
         max_cars = num_lanes * cars_per_lane
-        print(
-            f"  \u2192 {num_lanes} lanes \u00d7 {cars_per_lane} cars/lane"
-            f" = {max_cars} max cars in ROI"
+        logger.info(
+            "  \u2192 %d lanes \u00d7 %d cars/lane = %d max cars in ROI",
+            num_lanes,
+            cars_per_lane,
+            max_cars,
         )
 
         existing[loc_name] = {
@@ -744,12 +754,14 @@ def main():
             "num_lanes": num_lanes,
             "cars_per_lane": cars_per_lane,
         }
-        print(f"  {loc_name}: saved {len(result)} vertices + lane metadata")
+        logger.info(
+            "  %s: saved %d vertices + lane metadata", loc_name, len(result)
+        )
 
     out = save_road_roi(existing, config_path)
     n_defined = sum(1 for v in existing.values() if v.get("polygon"))
-    print(f"\nSaved {n_defined} ROI polygon(s) to {out}")
-    print("Done!")
+    logger.info("Saved %d ROI polygon(s) to %s", n_defined, out)
+    logger.info("Done!")
 
 
 if __name__ == "__main__":

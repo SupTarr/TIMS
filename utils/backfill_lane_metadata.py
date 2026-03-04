@@ -90,9 +90,12 @@ def backfill(
         cars_per_lane = estimate_cars_per_lane(polygon, label_data, num_lanes)
 
         if manual_override:
-            print(f"\n--- {loc_name} ---")
-            print(
-                f"  Auto-estimated:  num_lanes={num_lanes}  cars_per_lane={cars_per_lane}"
+            logger.info("")
+            logger.info("--- %s ---", loc_name)
+            logger.info(
+                "  Auto-estimated:  num_lanes=%d  cars_per_lane=%d",
+                num_lanes,
+                cars_per_lane,
             )
             num_lanes = prompt_positive_int(
                 f"  num_lanes [{num_lanes}]: ", default=num_lanes
@@ -116,19 +119,25 @@ def backfill(
     if results:
         hdr = f"{'Location':<14} {'Lanes':>5} {'Cars/Lane':>9} {'Detections':>10}"
         sep = "-" * len(hdr)
-        print(f"\n{sep}\n{hdr}\n{sep}")
+        logger.info("")
+        logger.info(sep)
+        logger.info(hdr)
+        logger.info(sep)
         for r in results:
-            print(
-                f"{r['location']:<14} {r['num_lanes']:>5} "
-                f"{r['cars_per_lane']:>9} {r['detections']:>10}"
+            logger.info(
+                "%-14s %5d %9d %10d",
+                r["location"],
+                r["num_lanes"],
+                r["cars_per_lane"],
+                r["detections"],
             )
-        print(sep)
+        logger.info(sep)
     else:
         logger.warning("No locations processed.")
         return
 
     if dry_run:
-        print("\n[dry-run] No changes written.")
+        logger.info("[dry-run] No changes written.")
     else:
         save_road_roi(roi_map, roi_path)
         logger.info("Updated %s (%d locations)", roi_path, len(results))
