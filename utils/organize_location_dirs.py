@@ -39,7 +39,9 @@ def organize():
         labels_dir.mkdir(exist_ok=True)
 
         image_files = sorted(
-            f for f in loc_dir.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
+            f
+            for f in loc_dir.iterdir()
+            if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
         )
 
         moved = 0

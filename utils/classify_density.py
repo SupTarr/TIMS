@@ -159,7 +159,9 @@ def classify_density(
         loc_counts: dict[str, int] = {cls: 0 for cls in DENSITY_CLASSES}
 
         image_files = sorted(
-            f for f in images_dir.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
+            f
+            for f in images_dir.iterdir()
+            if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
         )
 
         for img_path in image_files:

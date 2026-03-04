@@ -219,7 +219,9 @@ def refine_polygon_with_lane_seg(
     """Combine label-based polygon with lane-seg mask."""
     images_dir = loc_dir / "images"
     all_imgs = sorted(
-        f for f in images_dir.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
+        f
+        for f in images_dir.iterdir()
+        if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
     )
     if not all_imgs:
         return base_polygon
@@ -546,8 +548,12 @@ def preview_existing(config_path: Path):
 
         images_dir = loc_dir / "images"
         sample_img = next(
-            (f for f in images_dir.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS),
-            None
+            (
+                f
+                for f in images_dir.iterdir()
+                if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
+            ),
+            None,
         )
         if sample_img is None:
             continue
@@ -591,7 +597,9 @@ def pick_annotation_image(loc_dir: Path) -> Optional[Path]:
     """Pick a random daytime image (if available) for clearest annotation."""
     images_dir = loc_dir / "images"
     all_imgs = sorted(
-        f for f in images_dir.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
+        f
+        for f in images_dir.iterdir()
+        if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
     )
     if not all_imgs:
         return None
