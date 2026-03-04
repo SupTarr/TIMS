@@ -28,12 +28,12 @@ import csv
 import logging
 import shutil
 import sys
-from pathlib import Path
 
 import numpy as np
 
 from common import (
     DENSITY_OUTPUT_PATH as OUTPUT_DIR,
+    IMAGE_EXTENSIONS,
     TRAIN_BY_LOCATION_PATH,
     discover_locations,
     filter_vehicles_in_roi,
@@ -158,7 +158,9 @@ def classify_density(
 
         loc_counts: dict[str, int] = {cls: 0 for cls in DENSITY_CLASSES}
 
-        image_files = sorted(images_dir.glob("*.jpg"))
+        image_files = sorted(
+            f for f in images_dir.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
+        )
 
         for img_path in image_files:
             label_path = labels_dir / (img_path.stem + ".txt")

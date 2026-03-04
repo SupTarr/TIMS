@@ -253,7 +253,7 @@ def main():
                             img = draw_boxes(img, boxes)
 
                     ax.imshow(img)
-                except Exception as e:
+                except Exception:
                     ax.text(
                         0.5,
                         0.5,
