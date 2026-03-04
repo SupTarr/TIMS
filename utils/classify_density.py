@@ -12,9 +12,9 @@ Images are then copied into train/{light,medium,high,full}/ folders.
 
 Density thresholds (on ratio):
   - light:  ratio < 0.4
-  - medium: 0.4 ≤ ratio < 0.7
-  - high:   0.7 ≤ ratio < 1.0
-  - full:   ratio ≥ 1.0
+  - medium: 0.4 ≤ ratio < 0.65
+  - high:   0.65 ≤ ratio < 0.9
+  - full:   ratio ≥ 0.9
 
 Usage:
     python classify_density.py                # run classification
@@ -70,9 +70,9 @@ def classify_ratio(r: float) -> str:
     """Classify a density ratio into a density category."""
     if r < 0.4:
         return "light"
-    elif r < 0.7:
+    elif r < 0.65:
         return "medium"
-    elif r < 1.0:
+    elif r < 0.9:
         return "high"
     else:
         return "full"
