@@ -359,7 +359,7 @@ def filter_vehicles_in_roi(
     import cv2
 
     if len(roi_polygon) < 3 or not boxes:
-        return list(boxes)
+        return []
     roi_contour = roi_polygon.reshape(-1, 1, 2).astype(np.float32)
     return [
         b
