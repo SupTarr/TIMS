@@ -200,6 +200,7 @@ def extract_clip_embeddings(
     total_tiles = len(tile_items)
     embed_dim = model.visual.output_dim
     all_features = np.zeros((total_tiles, embed_dim), dtype=np.float32)
+    skipped_global: set[int] = set()
 
     for i in range(0, total_tiles, batch_size):
         batch = tile_items[i : i + batch_size]
@@ -231,6 +232,7 @@ def extract_clip_embeddings(
         feat_avg = (feat_orig + feat_flip) / 2.0
         for s in skipped:
             feat_avg[s] = 0.0
+            skipped_global.add(i + s)
         all_features[i : i + len(batch)] = feat_avg
 
         done = min(i + batch_size, total_tiles)
@@ -241,6 +243,8 @@ def extract_clip_embeddings(
     counts = np.zeros(n_frames, dtype=np.int32)
 
     for idx, (ts_idx, _) in enumerate(tile_items):
+        if idx in skipped_global:
+            continue
         frame_embeddings[ts_idx] += all_features[idx]
         counts[ts_idx] += 1
 
