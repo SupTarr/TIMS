@@ -104,7 +104,8 @@ LANE_SEG_WEIGHTS_PATH = (
 )
 
 CCTV_PATTERN = re.compile(
-    r"^(?P<hexhash>[0-9a-fA-F]{8})-(?P<timestamp>\d{6})_100_(?P<tile>\d+)\.jpe?g$"
+    r"^(?P<hexhash>[0-9a-fA-F]{8})-(?P<timestamp>\d{6})_100_(?P<tile>\d+)\.(?:jpe?g|png|bmp|tiff)$",
+    re.IGNORECASE
 )
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff"}
