@@ -23,15 +23,14 @@ import sys
 from pathlib import Path
 
 import clip
+import cv2
 import numpy as np
-import torch
 from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import normalize
 
 from cluster_by_location import (
     CLIP_MODEL,
-    EDGE_HIST_BINS,
     PCA_COMPONENTS,
     STRUCTURAL_WEIGHT,
     TILES_PER_FRAME,
@@ -43,17 +42,38 @@ from common import (
     TRAIN_BY_LOCATION_PATH,
     discover_locations,
     group_tiles_by_frame,
+    pick_representative,
     setup_logging,
 )
 
 logger = logging.getLogger(__name__)
 
 REPORT_PATH = TRAIN_BY_LOCATION_PATH / "validation_report.csv"
+IR_SATURATION_THRESHOLD = 25
 
 
 # ──────────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────────
+def detect_modality(img_path: Path) -> str:
+    """
+    Detect whether an image is RGB (color) or IR (grayscale / infrared)
+    by measuring the mean saturation in HSV space.  This is more reliable
+    than using the timestamp because cameras switch to IR based on ambient
+    light, not clock time.
+    """
+    img = cv2.imread(str(img_path))
+    if img is None:
+        return "unknown"
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    mean_sat = hsv[:, :, 1].mean()
+    return "IR" if mean_sat < IR_SATURATION_THRESHOLD else "RGB"
+
+
+def detect_frame_modality(tiles: list[dict]) -> str:
+    """Detect modality from the representative tile of a frame."""
+    rep = pick_representative(tiles)
+    return detect_modality(rep["path"])
 def _frames_from_location(loc_dir: Path) -> dict[str, list[dict]]:
     """Group tiles by frame inside a location's images/ subfolder."""
     images_dir = loc_dir / "images"
@@ -151,39 +171,80 @@ def validate(
     else:
         embeddings = clip_emb
 
-    loc_ids_sorted = sorted(loc_frames.keys())
-    centroids: dict[int, np.ndarray] = {}
-    for loc_id in loc_ids_sorted:
-        indices = [i for i, lid in enumerate(frame_loc_id) if lid == loc_id]
-        centroids[loc_id] = embeddings[indices].mean(axis=0, keepdims=True)
-    centroid_matrix = np.vstack([centroids[lid] for lid in loc_ids_sorted])
-    centroid_matrix = normalize(centroid_matrix)
+    logger.info("Detecting image modality (RGB / IR) from pixel data …")
+    frame_modality: list[str] = [
+        detect_frame_modality(all_frames[ts]) for ts in all_ts
+    ]
+    modalities = sorted(set(frame_modality))
+    mod_counts = {m: frame_modality.count(m) for m in modalities}
+    logger.info(
+        "Modalities: %s",
+        ", ".join(f"{m}={mod_counts[m]}" for m in modalities),
+    )
 
-    sims = cosine_similarity(embeddings, centroid_matrix)
+    loc_ids_sorted = sorted(loc_frames.keys())
 
     results: list[dict] = []
-    for i, ts in enumerate(all_ts):
-        assigned_loc = frame_loc_id[i]
-        assigned_idx = loc_ids_sorted.index(assigned_loc)
-        sim_to_assigned = float(sims[i, assigned_idx])
+    for mod in modalities:
+        mod_indices = [i for i, m in enumerate(frame_modality) if m == mod]
+        if not mod_indices:
+            continue
 
-        nearest_idx = int(sims[i].argmax())
-        nearest_loc = loc_ids_sorted[nearest_idx]
-        nearest_sim = float(sims[i, nearest_idx])
+        centroids: dict[int, np.ndarray] = {}
+        for loc_id in loc_ids_sorted:
+            indices = [
+                i for i in mod_indices if frame_loc_id[i] == loc_id
+            ]
+            if indices:
+                centroids[loc_id] = embeddings[indices].mean(axis=0, keepdims=True)
 
-        is_mismatch = sim_to_assigned < threshold
+        if not centroids:
+            continue
 
-        for tile in all_frames[ts]:
-            results.append(
-                {
-                    "filename": tile["path"].name,
-                    "assigned_location": f"location_{assigned_loc}",
-                    "cosine_similarity": round(sim_to_assigned, 4),
-                    "is_mismatch": is_mismatch,
-                    "nearest_location": f"location_{nearest_loc}",
-                    "nearest_similarity": round(nearest_sim, 4),
-                }
+        centroid_locs = sorted(centroids.keys())
+        centroid_matrix = np.vstack([centroids[lid] for lid in centroid_locs])
+        centroid_matrix = normalize(centroid_matrix)
+
+        mod_embeddings = embeddings[mod_indices]
+        sims = cosine_similarity(mod_embeddings, centroid_matrix)
+
+        logger.info(
+            "  %s: %d frames, %d location centroids",
+            mod, len(mod_indices), len(centroid_locs),
+        )
+
+        for j, global_i in enumerate(mod_indices):
+            ts = all_ts[global_i]
+            assigned_loc = frame_loc_id[global_i]
+
+            if assigned_loc in centroid_locs:
+                assigned_idx = centroid_locs.index(assigned_loc)
+                sim_to_assigned = float(sims[j, assigned_idx])
+            else:
+                sim_to_assigned = float("nan")
+
+            nearest_idx = int(sims[j].argmax())
+            nearest_loc = centroid_locs[nearest_idx]
+            nearest_sim = float(sims[j, nearest_idx])
+
+            is_mismatch = (
+                not np.isnan(sim_to_assigned)
+                and sim_to_assigned < threshold
+                and nearest_loc != assigned_loc
             )
+
+            for tile in all_frames[ts]:
+                results.append(
+                    {
+                        "filename": tile["path"].name,
+                        "assigned_location": f"location_{assigned_loc}",
+                        "modality": mod,
+                        "cosine_similarity": round(sim_to_assigned, 4),
+                        "is_mismatch": is_mismatch,
+                        "nearest_location": f"location_{nearest_loc}",
+                        "nearest_similarity": round(nearest_sim, 4),
+                    }
+                )
 
     return results
 
@@ -197,6 +258,7 @@ def write_report(results: list[dict], report_path: Path) -> None:
     fieldnames = [
         "filename",
         "assigned_location",
+        "modality",
         "cosine_similarity",
         "is_mismatch",
         "nearest_location",
@@ -302,7 +364,7 @@ def main():
 
     logger.info("=" * 60)
     logger.info("Location Consistency Validation")
-    logger.info("(CLIP + Structural Features)")
+    logger.info("(CLIP + Structural — modality-aware centroids)")
     logger.info("=" * 60)
     logger.info("Base directory : %s", base_dir)
     logger.info("Threshold      : %.2f", args.threshold)
