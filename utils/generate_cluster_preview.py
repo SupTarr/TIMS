@@ -131,7 +131,10 @@ def draw_boxes(img_rgb: np.ndarray, boxes: list, thickness: int = 2) -> np.ndarr
 
 def label_path_for_image(img_path: Path) -> Path:
     """Derive the YOLO label .txt path from an image path (images/ → labels/)."""
-    labels_dir = img_path.parent.parent / "labels"
+    if img_path.parent.name == "images":
+        labels_dir = img_path.parent.parent / "labels"
+    else:
+        labels_dir = img_path.parent / "labels"
     return labels_dir / img_path.with_suffix(".txt").name
 
 
