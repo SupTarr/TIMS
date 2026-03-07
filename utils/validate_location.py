@@ -23,7 +23,6 @@ import sys
 from pathlib import Path
 
 import clip
-import cv2
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import cosine_similarity
@@ -40,40 +39,20 @@ from cluster_by_location import (
 )
 from common import (
     TRAIN_BY_LOCATION_PATH,
+    detect_frame_modality,
     discover_locations,
     group_tiles_by_frame,
-    pick_representative,
     setup_logging,
 )
 
 logger = logging.getLogger(__name__)
 
 REPORT_PATH = TRAIN_BY_LOCATION_PATH / "validation_report.csv"
-IR_SATURATION_THRESHOLD = 25
 
 
 # ──────────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────────
-def detect_modality(img_path: Path) -> str:
-    """
-    Detect whether an image is RGB (color) or IR (grayscale / infrared)
-    by measuring the mean saturation in HSV space.  This is more reliable
-    than using the timestamp because cameras switch to IR based on ambient
-    light, not clock time.
-    """
-    img = cv2.imread(str(img_path))
-    if img is None:
-        return "unknown"
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    mean_sat = hsv[:, :, 1].mean()
-    return "IR" if mean_sat < IR_SATURATION_THRESHOLD else "RGB"
-
-
-def detect_frame_modality(tiles: list[dict]) -> str:
-    """Detect modality from the representative tile of a frame."""
-    rep = pick_representative(tiles)
-    return detect_modality(rep["path"])
 def _frames_from_location(loc_dir: Path) -> dict[str, list[dict]]:
     """Group tiles by frame inside a location's images/ subfolder."""
     images_dir = loc_dir / "images"
@@ -172,15 +151,10 @@ def validate(
         embeddings = clip_emb
 
     logger.info("Detecting image modality (RGB / IR) from pixel data …")
-    frame_modality: list[str] = [
-        detect_frame_modality(all_frames[ts]) for ts in all_ts
-    ]
+    frame_modality: list[str] = [detect_frame_modality(all_frames[ts]) for ts in all_ts]
     modalities = sorted(set(frame_modality))
     mod_counts = {m: frame_modality.count(m) for m in modalities}
-    logger.info(
-        "Modalities: %s",
-        ", ".join(f"{m}={mod_counts[m]}" for m in modalities),
-    )
+    logger.info("Modalities: %s", ", ".join(f"{m}={mod_counts[m]}" for m in modalities))
 
     loc_ids_sorted = sorted(loc_frames.keys())
 
@@ -192,9 +166,7 @@ def validate(
 
         centroids: dict[int, np.ndarray] = {}
         for loc_id in loc_ids_sorted:
-            indices = [
-                i for i in mod_indices if frame_loc_id[i] == loc_id
-            ]
+            indices = [i for i in mod_indices if frame_loc_id[i] == loc_id]
             if indices:
                 centroids[loc_id] = embeddings[indices].mean(axis=0, keepdims=True)
 
@@ -210,7 +182,9 @@ def validate(
 
         logger.info(
             "  %s: %d frames, %d location centroids",
-            mod, len(mod_indices), len(centroid_locs),
+            mod,
+            len(mod_indices),
+            len(centroid_locs),
         )
 
         for j, global_i in enumerate(mod_indices):

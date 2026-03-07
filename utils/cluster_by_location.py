@@ -47,11 +47,11 @@ from common import (
     CLUSTER_PREVIEW_PATH,
     RAW_TRAIN_PATH as SRC_DIR,
     TRAIN_BY_LOCATION_PATH as DST_DIR,
+    detect_frame_modality,
     group_tiles_by_frame,
     pick_representative,
     pick_representatives,
     setup_logging,
-    time_period,
 )
 
 logger = logging.getLogger(__name__)
@@ -312,8 +312,8 @@ def generate_preview(
                 rep = pick_representative(frames[ts])
                 img = Image.open(rep["path"]).convert("RGB")
                 ax.imshow(img)
-                period = time_period(ts)
-                ax.set_title(f"loc_{cluster_id} | {ts} ({period})", fontsize=7)
+                modality = detect_frame_modality(frames[ts])
+                ax.set_title(f"loc_{cluster_id} | {ts} ({modality})", fontsize=7)
             else:
                 ax.set_visible(False)
 
@@ -362,12 +362,14 @@ def write_csv(
                 "cluster_id",
                 "hour",
                 "is_night",
+                "modality",
             ]
         )
         for ts in sorted(ts_to_cluster.keys()):
             cid = ts_to_cluster[ts]
             hour = int(ts[:2])
             is_night = hour < 6 or hour >= 18
+            modality = detect_frame_modality(frames[ts])
             for tile in frames[ts]:
                 writer.writerow(
                     [
@@ -378,6 +380,7 @@ def write_csv(
                         cid,
                         hour,
                         is_night,
+                        modality,
                     ]
                 )
     logger.info("  Metadata saved to %s", csv_path)
@@ -531,15 +534,17 @@ def main():
     for cid in range(n_clusters):
         cluster_timestamps = [ts for ts, c in ts_to_cluster.items() if c == cid]
         tile_count = sum(len(frames[ts]) for ts in cluster_timestamps)
-        day_count = sum(1 for ts in cluster_timestamps if 6 <= int(ts[:2]) < 18)
-        night_count = len(cluster_timestamps) - day_count
+        rgb_count = sum(
+            1 for ts in cluster_timestamps if detect_frame_modality(frames[ts]) == "RGB"
+        )
+        ir_count = len(cluster_timestamps) - rgb_count
         logger.info(
-            "    location_%d: %d frames (%d tiles) [day=%d, night=%d]",
+            "    location_%d: %d frames (%d tiles) [RGB=%d, IR=%d]",
             cid,
             len(cluster_timestamps),
             tile_count,
-            day_count,
-            night_count,
+            rgb_count,
+            ir_count,
         )
 
     logger.info("[8/8] Generating outputs...")

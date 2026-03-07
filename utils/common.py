@@ -31,8 +31,11 @@ __all__ = [
     "CCTV_PATTERN_LOOSE",
     "CLASS_NAMES",
     "IMAGE_EXTENSIONS",
+    "IR_SATURATION_THRESHOLD",
     "LANE_VEHICLE_CLASSES",
     # Functions
+    "detect_frame_modality",
+    "detect_modality",
     "discover_locations",
     "filter_vehicles_in_roi",
     "group_tiles_by_frame",
@@ -166,6 +169,32 @@ def time_period(ts: str) -> str:
     if hour >= 18:
         return "night"
     return "day"
+
+
+IR_SATURATION_THRESHOLD = 25
+
+
+def detect_modality(img_path: Path) -> str:
+    """
+    Detect whether an image is RGB (color) or IR (grayscale / infrared)
+    by measuring the mean saturation in HSV space.  More reliable than
+    timestamp-based classification because cameras switch to IR based on
+    ambient light, not clock time.
+    """
+    import cv2
+
+    img = cv2.imread(str(img_path))
+    if img is None:
+        return "unknown"
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    mean_sat = hsv[:, :, 1].mean()
+    return "IR" if mean_sat < IR_SATURATION_THRESHOLD else "RGB"
+
+
+def detect_frame_modality(tiles: list[dict]) -> str:
+    """Detect modality from the representative tile of a frame."""
+    rep = pick_representative(tiles)
+    return detect_modality(rep["path"])
 
 
 # ──────────────────────────────────────────────────────────────────────
