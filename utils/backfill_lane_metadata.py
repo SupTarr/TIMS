@@ -84,7 +84,38 @@ def backfill(
         num_lanes = estimate_num_lanes(polygon, label_data)
         cars_per_lane = estimate_cars_per_lane(polygon, label_data, num_lanes)
 
-        if manual_override:
+        existing_lanes = entry.get("num_lanes")
+        existing_cpl = entry.get("cars_per_lane")
+
+        if existing_lanes is not None and existing_cpl is not None:
+            if manual_override:
+                logger.info("")
+                logger.info("--- %s ---", loc_name)
+                logger.info(
+                    "  Existing values: num_lanes=%d  cars_per_lane=%d",
+                    existing_lanes,
+                    existing_cpl,
+                )
+                logger.info(
+                    "  AI estimates:    num_lanes=%d  cars_per_lane=%d",
+                    num_lanes,
+                    cars_per_lane,
+                )
+                num_lanes = prompt_positive_int(
+                    f"  num_lanes [{existing_lanes}]: ", default=existing_lanes
+                )
+                cars_per_lane = prompt_positive_int(
+                    f"  cars_per_lane [{existing_cpl}]: ", default=existing_cpl
+                )
+            else:
+                logger.info(
+                    "%s: already has num_lanes=%d, cars_per_lane=%d — skipping",
+                    loc_name,
+                    existing_lanes,
+                    existing_cpl,
+                )
+                continue
+        elif manual_override:
             logger.info("")
             logger.info("--- %s ---", loc_name)
             logger.info(
