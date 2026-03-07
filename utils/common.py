@@ -28,7 +28,6 @@ __all__ = [
     "TIMS_FINAL_LABELS_PATH",
     "LANE_SEG_WEIGHTS_PATH",
     "CCTV_PATTERN",
-    "CCTV_PATTERN_LOOSE",
     "CLASS_NAMES",
     "IMAGE_EXTENSIONS",
     "IR_SATURATION_THRESHOLD",
@@ -107,8 +106,6 @@ LANE_SEG_WEIGHTS_PATH = (
 CCTV_PATTERN = re.compile(
     r"^(?P<hexhash>[0-9a-fA-F]{8})-(?P<timestamp>\d{6})_100_(?P<tile>\d+)\.jpe?g$"
 )
-
-CCTV_PATTERN_LOOSE = re.compile(r"^[0-9a-fA-F]{8}-\d{6}_\d+_\d+")
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff"}
 

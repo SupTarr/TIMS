@@ -11,7 +11,7 @@ import logging
 import shutil
 
 from common import (
-    CCTV_PATTERN_LOOSE,
+    CCTV_PATTERN,
     IMAGE_EXTENSIONS,
     RAW_TRAIN_PATH,
     TIMS_FINAL_IMAGES_PATH,
@@ -27,8 +27,7 @@ def classify_by_filename(filename: str) -> str:
       - UUID + numeric timestamp pattern -> CCTV
       - Anything else -> Google
     """
-    stem = filename.rsplit(".", 1)[0] if "." in filename else filename
-    if CCTV_PATTERN_LOOSE.match(stem):
+    if CCTV_PATTERN.match(filename):
         return "CCTV"
     return "Google"
 
