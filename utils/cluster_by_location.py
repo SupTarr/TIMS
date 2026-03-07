@@ -555,8 +555,12 @@ def main():
     logger.info("[8/8] Generating outputs...")
 
     if DST_DIR.exists():
-        logger.info("  Clearing previous output at %s...", DST_DIR)
-        shutil.rmtree(DST_DIR)
+        logger.info("  Clearing previous location folders at %s...", DST_DIR)
+        for child in sorted(DST_DIR.iterdir()):
+            if child.is_dir() and child.name.startswith("location_"):
+                shutil.rmtree(child)
+            elif child.is_file() and child.suffix.lower() not in {".json", ".csv"}:
+                child.unlink()
 
     total_copied = copy_to_location_folders(frames, ts_to_cluster, DST_DIR)
     logger.info("  Copied %d tiles into %d location folders", total_copied, n_clusters)
