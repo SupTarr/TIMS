@@ -368,10 +368,7 @@ def estimate_cars_per_lane(
 
     w_px = inside[:, 3]
     h_px = inside[:, 4]
-    car_lengths = np.maximum(
-        np.abs(w_px * road_axis[0]) + np.abs(h_px * road_axis[1]),
-        np.abs(w_px * road_axis[1]) + np.abs(h_px * road_axis[0]),
-    )
+    car_lengths = np.abs(w_px * road_axis[0]) + np.abs(h_px * road_axis[1])
     median_length = float(np.median(car_lengths))
     if median_length < 1:
         return DEFAULT_CARS_PER_LANE
