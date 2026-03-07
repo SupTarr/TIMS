@@ -167,24 +167,28 @@ def validate(
         if not mod_indices:
             continue
 
-        centroids: dict[int, np.ndarray] = {}
+        loc_indices: dict[int, list[int]] = {}
+        loc_emb_sum: dict[int, np.ndarray] = {}
         for loc_id in loc_ids_sorted:
             indices = [i for i in mod_indices if frame_loc_id[i] == loc_id]
             if indices:
-                centroids[loc_id] = embeddings[indices].mean(axis=0, keepdims=True)
+                loc_indices[loc_id] = indices
+                loc_emb_sum[loc_id] = embeddings[indices].sum(axis=0)
 
-        if not centroids:
+        if not loc_indices:
             continue
 
-        centroid_locs = sorted(centroids.keys())
-        centroid_matrix = np.vstack([centroids[lid] for lid in centroid_locs])
-        centroid_matrix = normalize(centroid_matrix)
-
-        mod_embeddings = embeddings[mod_indices]
-        sims = cosine_similarity(mod_embeddings, centroid_matrix)
+        centroid_locs = sorted(loc_indices.keys())
+        other_centroids: dict[int, np.ndarray] = {}
+        for lid in centroid_locs:
+            n = len(loc_indices[lid])
+            other_centroids[lid] = (loc_emb_sum[lid] / n).reshape(1, -1)
+        other_centroid_matrix = normalize(
+            np.vstack([other_centroids[lid] for lid in centroid_locs])
+        )
 
         logger.info(
-            "  %s: %d frames, %d location centroids",
+            "  %s: %d frames, %d location centroids (leave-one-out)",
             mod,
             len(mod_indices),
             len(centroid_locs),
@@ -194,15 +198,34 @@ def validate(
             frame_key = all_keys[global_i]
             assigned_loc = frame_loc_id[global_i]
 
-            if assigned_loc in centroid_locs:
+            if assigned_loc in loc_indices:
+                n = len(loc_indices[assigned_loc])
+                if n > 1:
+                    loo_centroid = (
+                        (loc_emb_sum[assigned_loc] - embeddings[global_i]) / (n - 1)
+                    ).reshape(1, -1)
+                    loo_centroid = normalize(loo_centroid)
+                else:
+                    loo_centroid = normalize(embeddings[global_i].reshape(1, -1))
+
+                sim_to_assigned = float(
+                    cosine_similarity(
+                        embeddings[global_i].reshape(1, -1), loo_centroid
+                    )[0, 0]
+                )
+
                 assigned_idx = centroid_locs.index(assigned_loc)
-                sim_to_assigned = float(sims[j, assigned_idx])
+                row = np.copy(other_centroid_matrix)
+                row[assigned_idx] = loo_centroid[0]
+                row = normalize(row)
             else:
                 sim_to_assigned = float("nan")
+                row = other_centroid_matrix
 
-            nearest_idx = int(sims[j].argmax())
+            sims_row = cosine_similarity(embeddings[global_i].reshape(1, -1), row)[0]
+            nearest_idx = int(sims_row.argmax())
             nearest_loc = centroid_locs[nearest_idx]
-            nearest_sim = float(sims[j, nearest_idx])
+            nearest_sim = float(sims_row[nearest_idx])
 
             is_mismatch = (
                 not np.isnan(sim_to_assigned)
