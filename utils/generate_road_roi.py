@@ -394,7 +394,7 @@ def prompt_positive_int(prompt_text: str, default: int) -> int:
     while True:
         raw = input(prompt_text).strip()
         if not raw:
-            return default
+            return max(default, 1)
         try:
             val = int(raw)
             if val >= 1:
