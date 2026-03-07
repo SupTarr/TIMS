@@ -218,6 +218,8 @@ def refine_polygon_with_lane_seg(
 ) -> np.ndarray:
     """Combine label-based polygon with lane-seg mask."""
     images_dir = loc_dir / "images"
+    if not images_dir.is_dir():
+        images_dir = loc_dir
     all_imgs = sorted(
         f
         for f in images_dir.iterdir()
@@ -546,6 +548,8 @@ def preview_existing(config_path: Path):
             continue
 
         images_dir = loc_dir / "images"
+        if not images_dir.is_dir():
+            images_dir = loc_dir
         sample_img = next(
             (
                 f
@@ -595,6 +599,8 @@ def preview_existing(config_path: Path):
 def pick_annotation_image(loc_dir: Path) -> Optional[Path]:
     """Pick a random daytime image (if available) for clearest annotation."""
     images_dir = loc_dir / "images"
+    if not images_dir.is_dir():
+        images_dir = loc_dir
     all_imgs = sorted(
         f
         for f in images_dir.iterdir()
