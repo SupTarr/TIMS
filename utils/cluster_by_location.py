@@ -223,17 +223,14 @@ def extract_clip_embeddings(
             images_flip.append(preprocess(img.transpose(Image.FLIP_LEFT_RIGHT)))
 
         orig_tensor = torch.stack(images_orig).to(device)
-        flip_tensor = torch.stack(images_flip).to(device)
 
         with torch.no_grad():
             feat_orig = model.encode_image(orig_tensor).cpu().numpy()
-            feat_flip = model.encode_image(flip_tensor).cpu().numpy()
 
-        feat_avg = (feat_orig + feat_flip) / 2.0
         for s in skipped:
-            feat_avg[s] = 0.0
+            feat_orig[s] = 0.0
             skipped_global.add(i + s)
-        all_features[i : i + len(batch)] = feat_avg
+        all_features[i : i + len(batch)] = feat_orig
 
         done = min(i + batch_size, total_tiles)
         logger.info("  CLIP: %d/%d tiles (x2 with flip aug)", done, total_tiles)
