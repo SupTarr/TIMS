@@ -709,7 +709,7 @@ def main():
             suggested_poly = np.empty((0, 2), dtype=np.int32)
         else:
             suggested_poly = autosuggest_from_labels(loc_dir, img_w, img_h)
-            if lane_model is not None and len(suggested_poly) >= 3:
+            if lane_model is not None:
                 suggested_poly = refine_polygon_with_lane_seg(
                     lane_model, loc_dir, suggested_poly, img_w, img_h
                 )

@@ -249,6 +249,7 @@ def main():
                     if draw_roi_flag and has_roi:
                         img = overlay_roi(img, polygon)
 
+                    boxes = []
                     if draw_boxes_flag:
                         lbl_path = label_path_for_image(rep["path"])
                         boxes = parse_yolo_labels(lbl_path)
@@ -266,11 +267,7 @@ def main():
                         transform=ax.transAxes,
                     )
                 period = time_period(rep["ts"], rep["path"])
-                n_boxes = (
-                    len(parse_yolo_labels(label_path_for_image(rep["path"])))
-                    if draw_boxes_flag
-                    else 0
-                )
+                n_boxes = len(boxes) if draw_boxes_flag else 0
                 box_info = f" [{n_boxes} obj]" if n_boxes else ""
                 ax.set_title(f"loc_{loc_id} | {ts} ({period}){box_info}", fontsize=7)
             else:
