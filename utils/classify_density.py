@@ -123,7 +123,10 @@ def classify_density(
     logger.info("Found %d locations", len(locations))
     if not dry_run and not histogram:
         for cls in DENSITY_CLASSES:
-            (OUTPUT_DIR / cls).mkdir(parents=True, exist_ok=True)
+            cls_dir = OUTPUT_DIR / cls
+            if cls_dir.exists():
+                shutil.rmtree(cls_dir)
+            cls_dir.mkdir(parents=True, exist_ok=True)
 
     stats: dict[str, int] = {cls: 0 for cls in DENSITY_CLASSES}
     location_stats: dict[str, dict[str, int]] = {}
