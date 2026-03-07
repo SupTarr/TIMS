@@ -201,12 +201,10 @@ def validate(
             if assigned_loc in loc_indices:
                 n = len(loc_indices[assigned_loc])
                 if n > 1:
-                    loo_centroid = (
-                        (loc_emb_sum[assigned_loc] - embeddings[global_i]) / (n - 1)
-                    ).reshape(1, -1)
-                    loo_centroid = normalize(loo_centroid)
+                        loo_centroid = ((loc_emb_sum[assigned_loc] - embeddings[global_i]) / (n - 1)).reshape(1, -1)
+                        loo_centroid = normalize(loo_centroid)
                 else:
-                    loo_centroid = normalize(embeddings[global_i].reshape(1, -1))
+                        loo_centroid = np.zeros((1, embeddings.shape[1]), dtype=np.float32)
 
                 sim_to_assigned = float(
                     cosine_similarity(
