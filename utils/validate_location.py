@@ -87,7 +87,7 @@ def validate(
     logger.info("Found %d locations in %s", len(locations), base_dir)
 
     loc_frames: dict[int, dict[str, list[dict]]] = {}
-    loc_ts_lists: dict[int, list[str]] = {}
+    loc_key_lists: dict[int, list[str]] = {}
 
     for loc_id, loc_dir in locations:
         frames = _frames_from_location(loc_dir)
@@ -95,7 +95,7 @@ def validate(
             logger.warning("  location_%d: no images found — skipping", loc_id)
             continue
         loc_frames[loc_id] = frames
-        loc_ts_lists[loc_id] = sorted(frames.keys())
+        loc_key_lists[loc_id] = sorted(frames.keys())
         n_tiles = sum(len(v) for v in frames.values())
         logger.info("  location_%d: %d frames (%d tiles)", loc_id, len(frames), n_tiles)
 
@@ -103,17 +103,18 @@ def validate(
         logger.error("No images found in any location folder")
         sys.exit(1)
 
-    all_ts: list[str] = []
+    all_keys: list[str] = []
     all_frames: dict[str, list[dict]] = {}
     frame_loc_id: list[int] = []
 
     for loc_id in sorted(loc_frames):
-        for ts in loc_ts_lists[loc_id]:
-            all_ts.append(ts)
-            all_frames[ts] = loc_frames[loc_id][ts]
+        for fk in loc_key_lists[loc_id]:
+            key = f"{loc_id}_{fk}"
+            all_keys.append(key)
+            all_frames[key] = loc_frames[loc_id][fk]
             frame_loc_id.append(loc_id)
 
-    n_total = len(all_ts)
+    n_total = len(all_keys)
     logger.info("Total: %d frames across %d locations", n_total, len(loc_frames))
 
     device = select_device(device_pref)
@@ -123,7 +124,7 @@ def validate(
 
     logger.info("Extracting CLIP embeddings …")
     clip_emb = extract_clip_embeddings(
-        all_frames, all_ts, model, preprocess, device, batch_size, tiles_per_frame
+        all_frames, all_keys, model, preprocess, device, batch_size, tiles_per_frame
     )
     clip_emb = normalize(clip_emb)
 
@@ -134,7 +135,7 @@ def validate(
 
     if use_structural:
         logger.info("Extracting structural features …")
-        struct_feat = extract_structural_batch(all_frames, all_ts, tiles_per_frame)
+        struct_feat = extract_structural_batch(all_frames, all_keys, tiles_per_frame)
         struct_feat = normalize(struct_feat)
 
         w_clip = 1.0 - structural_weight
@@ -151,7 +152,9 @@ def validate(
         embeddings = clip_emb
 
     logger.info("Detecting image modality (RGB / IR) from pixel data …")
-    frame_modality: list[str] = [detect_frame_modality(all_frames[ts]) for ts in all_ts]
+    frame_modality: list[str] = [
+        detect_frame_modality(all_frames[ts]) for ts in all_keys
+    ]
     modalities = sorted(set(frame_modality))
     mod_counts = {m: frame_modality.count(m) for m in modalities}
     logger.info("Modalities: %s", ", ".join(f"{m}={mod_counts[m]}" for m in modalities))
@@ -188,7 +191,7 @@ def validate(
         )
 
         for j, global_i in enumerate(mod_indices):
-            ts = all_ts[global_i]
+            frame_key = all_keys[global_i]
             assigned_loc = frame_loc_id[global_i]
 
             if assigned_loc in centroid_locs:
@@ -207,7 +210,7 @@ def validate(
                 and nearest_loc != assigned_loc
             )
 
-            for tile in all_frames[ts]:
+            for tile in all_frames[frame_key]:
                 results.append(
                     {
                         "filename": tile["path"].name,
