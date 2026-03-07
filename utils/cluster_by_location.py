@@ -367,7 +367,8 @@ def write_csv(
         )
         for ts in sorted(ts_to_cluster.keys()):
             cid = ts_to_cluster[ts]
-            hour = int(ts[:2])
+            actual_ts = frames[ts][0]["ts"]
+            hour = int(actual_ts[:2])
             is_night = hour < 6 or hour >= 18
             modality = detect_frame_modality(frames[ts])
             for tile in frames[ts]:

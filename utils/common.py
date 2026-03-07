@@ -128,8 +128,13 @@ def parse_filename(filename: str):
 
 def group_tiles_by_frame(src_dir: Path) -> dict[str, list[dict]]:
     """
-    Group all image files by their frame key (timestamp).
-    Returns {timestamp: [{"path": Path, "hex": str, "ts": str, "tile": int}, ...]}
+    Group all image files by their frame key (``{hex}_{timestamp}``).
+
+    Using both the camera hash and the timestamp prevents frames from
+    different cameras that happen to share the same capture time from
+    being merged into a single group.
+
+    Returns ``{hex_ts: [{"path": Path, "hex": str, "ts": str, "tile": int}, ...]}``
     """
     frames = defaultdict(list)
     for f in sorted(src_dir.iterdir()):
@@ -139,9 +144,10 @@ def group_tiles_by_frame(src_dir: Path) -> dict[str, list[dict]]:
         if parsed is None:
             continue
         hex_hash, ts, tile = parsed
-        frames[ts].append({"path": f, "hex": hex_hash, "ts": ts, "tile": tile})
-    for ts in frames:
-        frames[ts].sort(key=lambda x: x["tile"])
+        frame_key = f"{hex_hash}_{ts}"
+        frames[frame_key].append({"path": f, "hex": hex_hash, "ts": ts, "tile": tile})
+    for key in frames:
+        frames[key].sort(key=lambda x: x["tile"])
     return dict(frames)
 
 
