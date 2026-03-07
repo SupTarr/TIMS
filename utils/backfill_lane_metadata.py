@@ -67,11 +67,12 @@ def backfill(
         img_w, img_h = entry["image_size"]
 
         labels_dir = loc_dir / "labels"
+        label_data = np.empty((0, 5))
         if not labels_dir.exists() or not any(labels_dir.glob("*.txt")):
-            logger.warning("%s has no labels — skipping", loc_name)
-            continue
+            logger.warning("%s has no labels — using AI defaults for lanes", loc_name)
+        else:
+            label_data = load_label_data(labels_dir, img_w, img_h)
 
-        label_data = load_label_data(labels_dir, img_w, img_h)
         logger.info(
             "%s: %d detections, polygon %d vertices, image %dx%d",
             loc_name,
