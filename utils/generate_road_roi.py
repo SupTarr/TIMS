@@ -226,7 +226,9 @@ def refine_polygon_with_lane_seg(
     if not all_imgs:
         return base_polygon
 
-    day_imgs = [p for p in all_imgs if time_period(p.name.split("-")[1][:6], p) == "day"]
+    day_imgs = [
+        p for p in all_imgs if time_period(p.name.split("-")[1][:6], p) == "day"
+    ]
     sample = (day_imgs or all_imgs)[:5]
 
     seg_mask = lane_seg_mask(model, sample, img_w, img_h)
@@ -603,7 +605,9 @@ def pick_annotation_image(loc_dir: Path) -> Optional[Path]:
 
     for period_pref in ("day", "night", "IR"):
         candidates = [
-            p for p in all_imgs if time_period(p.name.split("-")[1][:6], p) == period_pref
+            p
+            for p in all_imgs
+            if time_period(p.name.split("-")[1][:6], p) == period_pref
         ]
         if candidates:
             return random.choice(candidates)
