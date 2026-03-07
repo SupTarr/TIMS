@@ -161,9 +161,25 @@ def pick_representatives(tiles: list[dict], n: int = 3) -> list[dict]:
     return [tiles[i] for i in indices]
 
 
-def time_period(ts: str) -> str:
-    """Classify timestamp into day/night/IR label."""
+def time_period(ts: str, img_path: Optional[Path] = None) -> str:
+    """
+    Classify a frame into ``"day"`` / ``"night"`` / ``"IR"``.
+
+    If *img_path* is provided the image's actual pixel saturation is used
+    to distinguish RGB from IR (cameras switch based on ambient light, not
+    the clock).  The hour is then only used to separate day from night
+    among the RGB frames.
+
+    Without *img_path* the old heuristic (hour-only) is used as fallback.
+    """
     hour = int(ts[:2])
+
+    if img_path is not None:
+        modality = detect_modality(img_path)
+        if modality == "IR":
+            return "IR"
+        return "day" if 6 <= hour < 18 else "night"
+
     if hour < 6 or hour >= 22:
         return "IR"
     if hour >= 18:

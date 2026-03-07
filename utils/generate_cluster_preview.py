@@ -262,7 +262,7 @@ def main():
                         va="center",
                         transform=ax.transAxes,
                     )
-                period = time_period(ts)
+                period = time_period(ts, rep["path"])
                 n_boxes = (
                     len(parse_yolo_labels(label_path_for_image(rep["path"])))
                     if draw_boxes_flag
