@@ -4,15 +4,15 @@ Validate that images in each location_* folder truly belong to that location.
 
 Uses the same combined CLIP + structural feature pipeline as
 cluster_by_location.py to compute per-frame embeddings, then checks
-cosine similarity against each location's centroid.  Frames below the
+cosine similarity against each location's centroid. Frames below the
 similarity threshold are flagged as potential mismatches.
 
 Output is a diagnostic CSV report — no images are moved or deleted.
 
 Usage:
-    python validate_location.py                        # default threshold 0.70
-    python validate_location.py --threshold 0.80       # stricter
-    python validate_location.py --no-structural        # CLIP-only check
+    python validate_location.py                  # default threshold 0.70
+    python validate_location.py --threshold 0.80 # stricter
+    python validate_location.py --no-structural  # CLIP-only check
     python validate_location.py --device cpu
 """
 
@@ -158,6 +158,7 @@ def validate(
     frame_modality: list[str] = [
         detect_frame_modality(all_frames[ts]) for ts in all_keys
     ]
+
     modalities = sorted(set(frame_modality))
     mod_counts = {m: frame_modality.count(m) for m in modalities}
     logger.info("Modalities: %s", ", ".join(f"{m}={mod_counts[m]}" for m in modalities))
@@ -200,30 +201,35 @@ def validate(
         for j, global_i in enumerate(mod_indices):
             frame_key = all_keys[global_i]
             assigned_loc = frame_loc_id[global_i]
+            assigned_idx = centroid_locs.index(assigned_loc)
 
-            if assigned_loc in loc_indices:
-                n = len(loc_indices[assigned_loc])
-                if n > 1:
-                    loo_centroid = (
-                        (loc_emb_sum[assigned_loc] - embeddings[global_i]) / (n - 1)
-                    ).reshape(1, -1)
-                    loo_centroid = normalize(loo_centroid)
-                    sim_to_assigned = float(
-                        cosine_similarity(
-                            embeddings[global_i].reshape(1, -1), loo_centroid
-                        )[0, 0]
-                    )
-                else:
-                    sim_to_assigned = float("nan")
+            n = len(loc_indices.get(assigned_loc, []))
 
-                assigned_idx = centroid_locs.index(assigned_loc)
+            if n > 1:
+                loo_centroid = (
+                    (loc_emb_sum[assigned_loc] - embeddings[global_i]) / (n - 1)
+                ).reshape(1, -1)
+                loo_centroid = normalize(loo_centroid)
+                sim_to_assigned = float(
+                    cosine_similarity(
+                        embeddings[global_i].reshape(1, -1), loo_centroid
+                    )[0, 0]
+                )
                 row = np.copy(other_centroid_matrix)
-                if n > 1:
-                    row[assigned_idx] = loo_centroid[0]
+                row[assigned_idx] = loo_centroid[0]
                 row = normalize(row)
+
             else:
                 sim_to_assigned = float("nan")
-                row = other_centroid_matrix
+                other_locs = [lid for lid in centroid_locs if lid != assigned_loc]
+                if other_locs:
+                    row = normalize(
+                        np.vstack([other_centroids[lid] for lid in other_locs])
+                    )
+                    centroid_locs_for_nearest = other_locs
+                else:
+                    row = other_centroid_matrix
+                    centroid_locs_for_nearest = centroid_locs
 
             is_corrupted = corrupted_mask[global_i]
             if is_corrupted:
@@ -232,11 +238,14 @@ def validate(
                 nearest_sim = 0.0
                 status = "corrupted"
             else:
+                locs_for_nearest = (
+                    centroid_locs_for_nearest if n == 1 else centroid_locs
+                )
                 sims_row = cosine_similarity(embeddings[global_i].reshape(1, -1), row)[
                     0
                 ]
                 nearest_idx = int(sims_row.argmax())
-                nearest_loc = centroid_locs[nearest_idx]
+                nearest_loc = locs_for_nearest[nearest_idx]
                 nearest_sim = float(sims_row[nearest_idx])
 
                 below_threshold = (
@@ -302,12 +311,12 @@ def print_summary(results: list[dict]) -> None:
     logger.info("=" * 60)
     logger.info("Total images checked : %d", total)
     logger.info(
-        "True mismatches      : %d (%.1f%%)  ← nearest ≠ assigned",
+        "True mismatches      : %d (%.1f%%) ← nearest ≠ assigned",
         len(mismatched),
         100 * len(mismatched) / max(total, 1),
     )
     logger.info(
-        "Outliers             : %d (%.1f%%)  ← low sim but no better location",
+        "Outliers             : %d (%.1f%%) ← low sim but no better location",
         len(outliers),
         100 * len(outliers) / max(total, 1),
     )
@@ -328,12 +337,7 @@ def print_summary(results: list[dict]) -> None:
 
     logger.info("-" * 68)
     logger.info(
-        "%-15s  %6s  %9s  %8s  %s",
-        "Location",
-        "Total",
-        "Mismatch",
-        "Outlier",
-        "Mismatch%",
+        "%-15s %6s %9s %8s %s", "Location", "Total", "Mismatch", "Outlier", "Mismatch%"
     )
     logger.info("-" * 68)
     for loc in sorted(loc_counts):
@@ -341,8 +345,8 @@ def print_summary(results: list[dict]) -> None:
         m = loc_counts[loc]["mismatch"]
         o = loc_counts[loc]["outlier"]
         rate = 100 * m / max(t, 1)
-        flag = "  ⚠" if m > 0 else ""
-        logger.info("%-15s  %6d  %9d  %8d  %5.1f%%%s", loc, t, m, o, rate, flag)
+        flag = " ⚠" if m > 0 else ""
+        logger.info("%-15s %6d %9d %8d %5.1f%%%s", loc, t, m, o, rate, flag)
     logger.info("-" * 68)
 
     if mismatched:
@@ -397,6 +401,7 @@ def main():
     parser.add_argument(
         "--output", type=str, default=None, help="Override report CSV path"
     )
+
     args = parser.parse_args()
     setup_logging()
 

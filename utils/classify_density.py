@@ -187,6 +187,12 @@ def classify_density(
                 continue
 
             label_path = labels_dir / (img_path.stem + ".txt")
+            if not label_path.exists():
+                logger.warning(
+                    "  Missing label file for %s — classified as 'light' (ratio=0.0)",
+                    img_path.name,
+                )
+
             boxes = parse_yolo_labels(label_path)
             ratio, total_w = compute_density_ratio(
                 boxes, roi_polygon, img_w, img_h, num_lanes, cars_per_lane

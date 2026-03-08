@@ -88,7 +88,7 @@ def backfill(
         existing_lanes = entry.get("num_lanes")
         existing_cpl = entry.get("cars_per_lane")
 
-        if existing_lanes is not None and existing_cpl is not None:
+        if existing_lanes and existing_cpl:
             if manual_override:
                 logger.info("")
                 logger.info("--- %s ---", loc_name)

@@ -171,7 +171,7 @@ def time_period(ts: str, img_path: Optional[Path] = None) -> str:
 
     If *img_path* is provided the image's actual pixel saturation is used
     to distinguish RGB from IR (cameras switch based on ambient light, not
-    the clock).  The hour is then only used to separate day from night
+    the clock). The hour is then only used to separate day from night
     among the RGB frames.
 
     Without *img_path* the old heuristic (hour-only) is used as fallback.
@@ -184,11 +184,7 @@ def time_period(ts: str, img_path: Optional[Path] = None) -> str:
             return "IR"
         return "day" if 6 <= hour < 18 else "night"
 
-    if hour < 6 or hour >= 22:
-        return "IR"
-    if hour >= 18:
-        return "night"
-    return "day"
+    return "day" if 6 <= hour < 18 else "night"
 
 
 IR_SATURATION_THRESHOLD = 25
