@@ -126,6 +126,8 @@ def validate(
     clip_emb = extract_clip_embeddings(
         all_frames, all_keys, model, preprocess, device, batch_size, tiles_per_frame
     )
+
+    corrupted_mask = np.abs(clip_emb).sum(axis=1) == 0
     clip_emb = normalize(clip_emb)
 
     n_components = min(pca_components, clip_emb.shape[0], clip_emb.shape[1])
@@ -223,7 +225,7 @@ def validate(
                 sim_to_assigned = float("nan")
                 row = other_centroid_matrix
 
-            is_corrupted = not np.any(embeddings[global_i])
+            is_corrupted = corrupted_mask[global_i]
             if is_corrupted:
                 sim_to_assigned = 0.0
                 nearest_loc = "CORRUPTED_FILE"

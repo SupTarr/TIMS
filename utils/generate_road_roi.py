@@ -741,8 +741,8 @@ def main():
             logger.info("Quitting early — saving progress...")
             break
 
-        if result is None:
-            logger.info("  %s: skipped", loc_name)
+        if result is None or len(result) < 3:
+            logger.info("  %s: skipped (invalid polygon or user skipped)", loc_name)
             continue
 
         result_poly = np.array(result, dtype=np.int32)

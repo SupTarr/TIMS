@@ -142,6 +142,12 @@ def classify_density(
 
         entry = roi_map[loc_name]
         roi_polygon = entry["polygon"]
+        if len(roi_polygon) < 3:
+            logger.warning(
+                "%s has an invalid polygon (<3 vertices) — skipping", loc_name
+            )
+            continue
+
         img_w, img_h = entry["image_size"]
 
         num_lanes = entry.get("num_lanes")
