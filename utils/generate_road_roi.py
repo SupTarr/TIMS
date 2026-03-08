@@ -51,8 +51,6 @@ from common import (
     parse_filename,
 )
 from lane_estimation import (
-    DEFAULT_CARS_PER_LANE,
-    DEFAULT_NUM_LANES,
     estimate_cars_per_lane,
     estimate_num_lanes,
 )
@@ -78,7 +76,7 @@ TEXT_COLOR = (255, 255, 255)
 WINDOW_NAME = "Road ROI Annotation"
 
 LANE_KDE_BANDWIDTH_DEFAULT = (
-    35  # kept for backward-compat; estimation is in lane_estimation.py
+    35
 )
 
 

@@ -375,9 +375,7 @@ def write_csv(
             actual_ts = frames[ts][0]["ts"]
             hour = int(actual_ts[:2])
             modality = detect_frame_modality(frames[ts])
-            # ── แก้ตรงนี้: ใช้ modality จริงแทนการเดาจาก hour ────────
             is_night = modality == "IR" or hour >= 18 or hour < 6
-            # ──────────────────────────────────────────────────────────
             for tile in frames[ts]:
                 writer.writerow(
                     [
