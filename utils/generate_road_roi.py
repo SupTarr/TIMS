@@ -3,27 +3,27 @@
 Semi-automatic road ROI annotation for each camera location.
 
 For every location_N folder, this script:
-  1. Auto-suggests a road ROI polygon from YOLO detection-label heatmaps
-     (optionally refined with a lane-segmentation model).
-  2. Opens an interactive OpenCV window for manual adjustment.
-  3. Prompts for number of lanes and cars-per-lane (auto-suggested).
-  4. Saves all polygons + lane metadata to a single road_roi.json config.
+1. Auto-suggests a road ROI polygon from YOLO detection-label heatmaps
+   (optionally refined with a lane-segmentation model).
+2. Opens an interactive OpenCV window for manual adjustment.
+3. Prompts for number of lanes and cars-per-lane (auto-suggested).
+4. Saves all polygons + lane metadata to a single road_roi.json config.
 
 Usage:
-    python generate_road_roi.py                   # annotate all locations
-    python generate_road_roi.py --location 3      # re-annotate one location
-    python generate_road_roi.py --no-auto          # skip auto-suggestion
-    python generate_road_roi.py --no-lane-seg      # skip lane-seg refinement
-    python generate_road_roi.py --preview-only     # view existing ROIs (read-only)
+  python generate_road_roi.py                # annotate all locations
+  python generate_road_roi.py --location 3   # re-annotate one location
+  python generate_road_roi.py --no-auto      # skip auto-suggestion
+  python generate_road_roi.py --no-lane-seg  # skip lane-seg refinement
+  python generate_road_roi.py --preview-only # view existing ROIs (read-only)
 
 Controls (interactive window):
-    Left-click          Add vertex / drag existing vertex
-    Right-click         Delete nearest vertex
-    r                   Reset to auto-suggested polygon
-    c                   Clear all vertices
-    n / Enter           Accept and move to next location
-    s                   Skip location (no ROI saved)
-    q                   Save progress and quit
+  Left-click    Add vertex / drag existing vertex
+  Right-click   Delete nearest vertex
+  r             Reset to auto-suggested polygon
+  c             Clear all vertices
+  n / Enter     Accept and move to next location
+  s             Skip location (no ROI saved)
+  q             Save progress and quit
 """
 
 import argparse
@@ -37,13 +37,11 @@ from typing import Optional
 import cv2
 import numpy as np
 from PIL import Image
-from scipy.signal import find_peaks
 from sklearn.neighbors import KernelDensity
 
 from common import (
     IMAGE_EXTENSIONS,
     LANE_SEG_WEIGHTS_PATH,
-    LANE_VEHICLE_CLASSES,
     ROI_CONFIG_PATH,
     discover_locations,
     parse_yolo_labels,
@@ -51,6 +49,12 @@ from common import (
     setup_logging,
     time_period,
     parse_filename,
+)
+from lane_estimation import (
+    DEFAULT_CARS_PER_LANE,
+    DEFAULT_NUM_LANES,
+    estimate_cars_per_lane,
+    estimate_num_lanes,
 )
 
 logger = logging.getLogger(__name__)
@@ -73,11 +77,9 @@ TEXT_COLOR = (255, 255, 255)
 
 WINDOW_NAME = "Road ROI Annotation"
 
-LANE_KDE_BANDWIDTH = 35
-MIN_LANE_WIDTH_PX = 80
-GAP_FACTOR = 0.3
-DEFAULT_NUM_LANES = 2
-DEFAULT_CARS_PER_LANE = 5
+LANE_KDE_BANDWIDTH_DEFAULT = (
+    35  # kept for backward-compat; estimation is in lane_estimation.py
+)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -120,7 +122,7 @@ def load_label_centroids(labels_dir: Path, img_w: int, img_h: int) -> np.ndarray
 def build_heatmap(
     centroids: np.ndarray, img_w: int, img_h: int, bandwidth: float = KDE_BANDWIDTH
 ) -> np.ndarray:
-    """Build a 2-D KDE density map from pixel centroids.  Returns a (H, W) float array."""
+    """Build a 2-D KDE density map from pixel centroids. Returns a (H, W) float array."""
     if len(centroids) < 3:
         return np.zeros((img_h, img_w), dtype=np.float32)
 
@@ -184,7 +186,7 @@ def autosuggest_from_labels(loc_dir: Path, img_w: int, img_h: int) -> np.ndarray
 # Step B — Refine with lane-segmentation model (optional)
 # ──────────────────────────────────────────────────────────────────────
 def load_lane_seg_model(weights: Path):
-    """Load YOLO lane segmentation model.  Returns None on failure."""
+    """Load YOLO lane segmentation model. Returns None on failure."""
     if not weights.exists():
         logger.warning(f"Lane-seg weights not found: {weights}")
         return None
@@ -272,131 +274,9 @@ def refine_polygon_with_lane_seg(
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Step B2 — Auto-estimate number of lanes and cars per lane
+# Step B2 — Lane / capacity estimation  →  see lane_estimation.py
+# (estimate_num_lanes, estimate_cars_per_lane imported at top of file)
 # ──────────────────────────────────────────────────────────────────────
-def _get_road_axes(polygon: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
-    """
-    Compute principal (road direction) and cross-road unit vectors from the
-    minimum-area bounding rectangle of the polygon.
-
-    Returns (road_axis, cross_axis, road_length_px).
-    """
-    rect = cv2.minAreaRect(polygon)
-    box = cv2.boxPoints(rect)
-    edge0 = box[1] - box[0]
-    edge1 = box[2] - box[1]
-    len0 = float(np.linalg.norm(edge0))
-    len1 = float(np.linalg.norm(edge1))
-
-    if len0 >= len1:
-        road_axis = edge0 / (len0 + 1e-9)
-        road_length = len0
-    else:
-        road_axis = edge1 / (len1 + 1e-9)
-        road_length = len1
-
-    cross_axis = np.array([-road_axis[1], road_axis[0]])
-    return road_axis, cross_axis, road_length
-
-
-def estimate_num_lanes(polygon: np.ndarray, label_data: np.ndarray) -> int:
-    """
-    Estimate number of lanes by projecting vehicle centroids within the ROI
-    onto the cross-road axis and counting peaks in the 1-D KDE.
-
-    Parameters
-    ----------
-    polygon : (V, 2) int32 array of ROI vertices
-    label_data : (N, 5) array [class_id, cx, cy, w, h] in pixel coords
-
-    Returns
-    -------
-    Estimated lane count (>= 1).
-    """
-    if len(polygon) < 3 or len(label_data) < 5:
-        return DEFAULT_NUM_LANES
-
-    mask_cls = np.isin(label_data[:, 0].astype(int), list(LANE_VEHICLE_CLASSES))
-    vehicles = label_data[mask_cls]
-    if len(vehicles) < 5:
-        return DEFAULT_NUM_LANES
-
-    poly_contour = polygon.reshape(-1, 1, 2).astype(np.float32)
-    inside_mask = np.array(
-        [
-            cv2.pointPolygonTest(poly_contour, (float(cx), float(cy)), False) >= 0
-            for cx, cy in vehicles[:, 1:3]
-        ]
-    )
-    inside = vehicles[inside_mask]
-    if len(inside) < 5:
-        return DEFAULT_NUM_LANES
-
-    _, cross_axis, _ = _get_road_axes(polygon)
-    projections = inside[:, 1:3] @ cross_axis
-
-    proj_col = projections.reshape(-1, 1)
-    kde = KernelDensity(bandwidth=LANE_KDE_BANDWIDTH, kernel="gaussian")
-    kde.fit(proj_col)
-
-    p_min, p_max = float(projections.min()), float(projections.max())
-    x_eval = np.linspace(p_min, p_max, 500).reshape(-1, 1)
-    density = np.exp(kde.score_samples(x_eval))
-
-    step_size = (p_max - p_min) / 500 + 1e-9
-    peaks, _ = find_peaks(density, distance=MIN_LANE_WIDTH_PX / step_size)
-    n_lanes = max(len(peaks), 1)
-    logger.info(
-        f"  Lane estimate: {n_lanes} peaks in cross-road KDE "
-        f"({len(inside)} vehicles in ROI)"
-    )
-    return n_lanes
-
-
-def estimate_cars_per_lane(
-    polygon: np.ndarray, label_data: np.ndarray, num_lanes: int
-) -> int:
-    """
-    Geometric estimate: how many cars fit bumper-to-bumper (with gap) in one lane.
-
-    Uses the road-direction extent of the ROI and median vehicle length
-    along that axis.
-    """
-    if len(polygon) < 3 or len(label_data) < 3 or num_lanes < 1:
-        return DEFAULT_CARS_PER_LANE
-
-    road_axis, _, road_length = _get_road_axes(polygon)
-
-    mask_cls = np.isin(label_data[:, 0].astype(int), list(LANE_VEHICLE_CLASSES))
-    vehicles = label_data[mask_cls]
-    if len(vehicles) < 3:
-        return DEFAULT_CARS_PER_LANE
-
-    poly_contour = polygon.reshape(-1, 1, 2).astype(np.float32)
-    inside_mask = np.array(
-        [
-            cv2.pointPolygonTest(poly_contour, (float(cx), float(cy)), False) >= 0
-            for cx, cy in vehicles[:, 1:3]
-        ]
-    )
-    inside = vehicles[inside_mask]
-    if len(inside) < 3:
-        return DEFAULT_CARS_PER_LANE
-
-    w_px = inside[:, 3]
-    h_px = inside[:, 4]
-    car_lengths = np.abs(w_px * road_axis[0]) + np.abs(h_px * road_axis[1])
-    median_length = float(np.median(car_lengths))
-    if median_length < 1:
-        return DEFAULT_CARS_PER_LANE
-
-    cars = int(road_length / (median_length * (1 + GAP_FACTOR)))
-    cars = max(cars, 1)
-    logger.info(
-        f"  Cars/lane estimate: {cars} "
-        f"(road_len={road_length:.0f}px, median_car={median_length:.0f}px)"
-    )
-    return cars
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -482,9 +362,9 @@ class ROIAnnotator:
 
         h = vis.shape[0]
         lines = [
-            f"{self.title}  |  {len(self.polygon)} vertices",
-            "L-click: add/drag  |  R-click: delete  |  r: reset  |  c: clear",
-            "n/Enter: accept  |  s: skip  |  q: save & quit",
+            f"{self.title} | {len(self.polygon)} vertices",
+            "L-click: add/drag | R-click: delete | r: reset | c: clear",
+            "n/Enter: accept | s: skip | q: save & quit",
         ]
         for i, txt in enumerate(lines):
             cv2.putText(
@@ -767,7 +647,7 @@ def main():
 
         max_cars = num_lanes * cars_per_lane
         logger.info(
-            "  \u2192 %d lanes \u00d7 %d cars/lane = %d max cars in ROI",
+            "  → %d lanes × %d cars/lane = %d max cars in ROI",
             num_lanes,
             cars_per_lane,
             max_cars,

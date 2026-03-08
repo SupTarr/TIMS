@@ -27,12 +27,8 @@ from common import (
     save_road_roi,
     setup_logging,
 )
-from generate_road_roi import (
-    estimate_cars_per_lane,
-    estimate_num_lanes,
-    load_label_data,
-    prompt_positive_int,
-)
+from generate_road_roi import load_label_data, prompt_positive_int
+from lane_estimation import estimate_cars_per_lane, estimate_num_lanes
 
 logger = logging.getLogger(__name__)
 
