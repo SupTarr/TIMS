@@ -214,12 +214,12 @@ def validate(
                         )[0, 0]
                     )
                 else:
-                    loo_centroid = np.zeros((1, embeddings.shape[1]), dtype=np.float32)
                     sim_to_assigned = float("nan")
 
                 assigned_idx = centroid_locs.index(assigned_loc)
                 row = np.copy(other_centroid_matrix)
-                row[assigned_idx] = loo_centroid[0]
+                if n > 1:
+                    row[assigned_idx] = loo_centroid[0]
                 row = normalize(row)
             else:
                 sim_to_assigned = float("nan")
@@ -240,8 +240,7 @@ def validate(
                 nearest_sim = float(sims_row[nearest_idx])
 
                 below_threshold = (
-                    not np.isnan(sim_to_assigned)
-                    and sim_to_assigned < threshold
+                    not np.isnan(sim_to_assigned) and sim_to_assigned < threshold
                 )
                 if below_threshold and nearest_loc != assigned_loc:
                     status = "mismatch"
@@ -330,7 +329,11 @@ def print_summary(results: list[dict]) -> None:
     logger.info("-" * 68)
     logger.info(
         "%-15s  %6s  %9s  %8s  %s",
-        "Location", "Total", "Mismatch", "Outlier", "Mismatch%",
+        "Location",
+        "Total",
+        "Mismatch",
+        "Outlier",
+        "Mismatch%",
     )
     logger.info("-" * 68)
     for loc in sorted(loc_counts):
@@ -344,8 +347,7 @@ def print_summary(results: list[dict]) -> None:
 
     if mismatched:
         remap = Counter(
-            (r["assigned_location"], r["nearest_location"])
-            for r in mismatched
+            (r["assigned_location"], r["nearest_location"]) for r in mismatched
         )
         if remap:
             logger.info("")
