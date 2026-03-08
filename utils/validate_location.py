@@ -223,16 +223,22 @@ def validate(
                 sim_to_assigned = float("nan")
                 row = other_centroid_matrix
 
-            sims_row = cosine_similarity(embeddings[global_i].reshape(1, -1), row)[0]
-            nearest_idx = int(sims_row.argmax())
-            nearest_loc = centroid_locs[nearest_idx]
-            nearest_sim = float(sims_row[nearest_idx])
-
-            is_mismatch = (
-                not np.isnan(sim_to_assigned)
-                and sim_to_assigned < threshold
-                and nearest_loc != assigned_loc
-            )
+            is_corrupted = not np.any(embeddings[global_i])
+            if is_corrupted:
+                sim_to_assigned = 0.0
+                nearest_loc = "CORRUPTED_FILE"
+                nearest_sim = 0.0
+                is_mismatch = True
+            else:
+                sims_row = cosine_similarity(embeddings[global_i].reshape(1, -1), row)[
+                    0
+                ]
+                nearest_idx = int(sims_row.argmax())
+                nearest_loc = centroid_locs[nearest_idx]
+                nearest_sim = float(sims_row[nearest_idx])
+                is_mismatch = (
+                    not np.isnan(sim_to_assigned) and sim_to_assigned < threshold
+                )
 
             for tile in all_frames[frame_key]:
                 results.append(

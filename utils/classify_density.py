@@ -146,10 +146,9 @@ def classify_density(
 
         num_lanes = entry.get("num_lanes")
         cars_per_lane = entry.get("cars_per_lane")
-        if num_lanes is None or cars_per_lane is None:
+        if not num_lanes or not cars_per_lane:
             logger.warning(
-                "%s missing num_lanes/cars_per_lane in road_roi.json — skipping",
-                loc_name,
+                "%s missing or has zero num_lanes/cars_per_lane — skipping", loc_name
             )
             continue
 
