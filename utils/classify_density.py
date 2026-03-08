@@ -35,6 +35,7 @@ from common import (
     DENSITY_OUTPUT_PATH as OUTPUT_DIR,
     IMAGE_EXTENSIONS,
     TRAIN_BY_LOCATION_PATH,
+    CCTV_PATTERN,
     discover_locations,
     filter_vehicles_in_roi,
     load_road_roi,
@@ -168,6 +169,10 @@ def classify_density(
         )
 
         for img_path in image_files:
+            if not CCTV_PATTERN.match(img_path.name):
+                logger.warning("  Skipping non-CCTV file: %s", img_path.name)
+                continue
+
             label_path = labels_dir / (img_path.stem + ".txt")
             boxes = parse_yolo_labels(label_path)
             ratio, total_w = compute_density_ratio(
