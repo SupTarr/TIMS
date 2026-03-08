@@ -68,20 +68,40 @@ def main():
     logger.info("Found %d valid images in train_by_location.", len(valid_filenames))
 
     logger.info("Scanning %s...", RAW_TRAIN_PATH)
-    deleted_count = 0
+
+    files_to_delete = []
     kept_count = 0
 
     for img_path in RAW_TRAIN_PATH.glob("*"):
         if img_path.is_file() and img_path.suffix.lower() in IMAGE_EXTENSIONS:
             if img_path.name not in valid_filenames:
-                if args.dry_run:
-                    logger.info("[DRY RUN] Would delete: %s", img_path.name)
-                else:
-                    img_path.unlink()
-                    logger.info("Deleted: %s", img_path.name)
-                deleted_count += 1
+                files_to_delete.append(img_path)
             else:
                 kept_count += 1
+
+    deleted_count = 0
+
+    if files_to_delete:
+        if args.dry_run:
+            for img_path in files_to_delete:
+                logger.info("[DRY RUN] Would delete: %s", img_path.name)
+            deleted_count = len(files_to_delete)
+        else:
+            print(
+                f"\n[WARNING] You are about to delete {len(files_to_delete)} files from raw/train."
+            )
+            ans = input("Do you want to proceed? [y/N]: ").strip().lower()
+
+            if ans == "y":
+                for img_path in files_to_delete:
+                    img_path.unlink()
+                    logger.info("Deleted: %s", img_path.name)
+                deleted_count = len(files_to_delete)
+            else:
+                logger.info("Aborted deletion. No files were deleted.")
+                deleted_count = 0
+    else:
+        logger.info("No files need to be deleted.")
 
     logger.info(
         "\nSync complete. Deleted %d files. Kept %d files.", deleted_count, kept_count

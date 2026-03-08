@@ -480,11 +480,14 @@ def main():
     clip_embeddings = normalize(clip_embeddings)
     logger.info("  CLIP shape: %s", clip_embeddings.shape)
 
-    if args.pca > 0 and args.pca < clip_embeddings.shape[1]:
+    n_components = min(args.pca, clip_embeddings.shape[0], clip_embeddings.shape[1])
+    if n_components > 0 and n_components < clip_embeddings.shape[1]:
         logger.info(
-            "[4/8] PCA reduction %d -> %d dims...", clip_embeddings.shape[1], args.pca
+            "[4/8] PCA reduction %d -> %d dims...",
+            clip_embeddings.shape[1],
+            n_components,
         )
-        pca = PCA(n_components=args.pca, random_state=42)
+        pca = PCA(n_components=n_components, random_state=42)
         clip_reduced = pca.fit_transform(clip_embeddings)
         variance = sum(pca.explained_variance_ratio_) * 100
         logger.info("  Explained variance: %.1f%%", variance)

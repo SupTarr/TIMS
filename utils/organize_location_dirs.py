@@ -53,6 +53,8 @@ def organize():
             shutil.move(str(img), str(dest_img))
             moved += 1
 
+        images_in_dir = sorted(p for p in images_dir.iterdir() if p.is_file())
+        for img in images_in_dir:
             label_name = img.stem + ".txt"
             src_label = TIMS_FINAL_LABELS_PATH / label_name
             if src_label.exists():

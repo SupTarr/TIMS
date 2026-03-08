@@ -128,9 +128,10 @@ def validate(
     )
     clip_emb = normalize(clip_emb)
 
-    if pca_components > 0 and pca_components < clip_emb.shape[1]:
-        logger.info("PCA %d → %d dims …", clip_emb.shape[1], pca_components)
-        pca = PCA(n_components=pca_components, random_state=42)
+    n_components = min(pca_components, clip_emb.shape[0], clip_emb.shape[1])
+    if n_components > 0 and n_components < clip_emb.shape[1]:
+        logger.info("PCA %d → %d dims …", clip_emb.shape[1], n_components)
+        pca = PCA(n_components=n_components, random_state=42)
         clip_emb = normalize(pca.fit_transform(clip_emb))
 
     if use_structural:
