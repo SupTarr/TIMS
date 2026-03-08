@@ -172,12 +172,6 @@ def estimate_num_lanes(polygon: np.ndarray, label_data: np.ndarray) -> int:
         return geo_lane_estimate
 
     road_axis, cross_axis, _ = _get_road_axes(polygon)
-
-    # ── Perspective-normalised cross-road positions ────────────────────
-    # For each vehicle, express its lateral position as a fraction
-    # [0, 1] of the polygon width at that road-axis depth.  This
-    # keeps lanes well-separated in the KDE regardless of how much
-    # the trapezoid ROI converges toward the vanishing point.
     norm_positions: list[float] = []
     for cx, cy in inside[:, 1:3]:
         pt = np.array([cx, cy])
@@ -202,7 +196,6 @@ def estimate_num_lanes(polygon: np.ndarray, label_data: np.ndarray) -> int:
     p_min, p_max = float(projections.min()), float(projections.max())
     spread = p_max - p_min
 
-    # Bandwidth in normalised [0, 1] space — ~¼ of expected lane spacing
     adaptive_bw = float(np.clip(0.25 / max(geo_lane_estimate, 1), 0.03, 0.25))
     logger.info(
         f"  Lane KDE bandwidth: {adaptive_bw:.3f} "
@@ -215,7 +208,6 @@ def estimate_num_lanes(polygon: np.ndarray, label_data: np.ndarray) -> int:
     x_eval = np.linspace(p_min, p_max, 500).reshape(-1, 1)
     density = np.exp(kde.score_samples(x_eval))
 
-    # Min peak distance: half the expected lane spacing in normalised units
     step_size = (spread / 500) + 1e-9
     min_norm_dist = 0.5 / max(geo_lane_estimate, 1)
     peak_distance = int(np.clip(min_norm_dist / step_size, 1, 499))
@@ -297,7 +289,6 @@ def estimate_cars_per_lane(
 
     w_px = inside[:, 3]
     h_px = inside[:, 4]
-    # Support-function projection of axis-aligned bboxes onto road direction
     car_lengths = w_px * abs(road_axis[0]) + h_px * abs(road_axis[1])
 
     median_length = float(np.median(car_lengths))
