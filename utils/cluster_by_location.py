@@ -3,22 +3,22 @@
 Cluster CCTV tile images by camera location using CLIP + structural features.
 
 Optimized for mixed day/night/IR imagery:
-  - CLAHE contrast enhancement for low-light & IR images
-  - Multi-tile sampling per frame (not just one representative)
-  - Structural features (edge histograms, resolution) fused with CLIP
-  - Agglomerative clustering with cosine affinity for better grouping
-  - Grayscale-normalized structural features to bridge day/night gap
+- CLAHE contrast enhancement for low-light & IR images
+- Multi-tile sampling per frame (not just one representative)
+- Structural features (edge histograms, resolution) fused with CLIP
+- Agglomerative clustering with cosine affinity for better grouping
+- Grayscale-normalized structural features to bridge day/night gap
 
 Reads images from raw/train/ (READ-ONLY — never modified).
 All writes go to raw/train_by_location/.
 
 Usage:
-    python cluster_by_location.py                        # auto-detect best K
-    python cluster_by_location.py --n-clusters 5         # force 5 clusters
-    python cluster_by_location.py --device cpu            # force CPU
-    python cluster_by_location.py --batch-size 16         # smaller batches
-    python cluster_by_location.py --tiles-per-frame 5     # more tiles sampled
-    python cluster_by_location.py --no-structural         # CLIP-only (skip edge features)
+    python cluster_by_location.py                  # auto-detect best K
+    python cluster_by_location.py --n-clusters 5   # force 5 clusters
+    python cluster_by_location.py --device cpu     # force CPU
+    python cluster_by_location.py --batch-size 16  # smaller batches
+    python cluster_by_location.py --tiles-per-frame 5  # more tiles sampled
+    python cluster_by_location.py --no-structural  # CLIP-only (skip edge features)
 """
 
 import argparse
@@ -106,9 +106,9 @@ def apply_clahe(pil_img: Image.Image) -> Image.Image:
 def extract_structural_features(img_path: Path) -> np.ndarray:
     """
     Extract illumination-invariant structural features from an image:
-      1. Edge orientation histogram (Sobel gradients -> orientation bins)
-      2. Spatial edge density (4x4 grid, compute edge density per cell)
-      3. Resolution fingerprint (width, height, aspect ratio)
+    1. Edge orientation histogram (Sobel gradients -> orientation bins)
+    2. Spatial edge density (4x4 grid, compute edge density per cell)
+    3. Resolution fingerprint (width, height, aspect ratio)
 
     These features capture the *geometry and layout* of the scene, which
     is consistent across day/night/IR for the same camera location.
@@ -196,9 +196,8 @@ def extract_clip_embeddings(
 ) -> np.ndarray:
     """
     Extract CLIP embeddings with improvements for IR accuracy:
-      - CLAHE preprocessing to enhance IR/low-light contrast
-      - Multi-tile averaging per frame for robustness
-      - Horizontal flip augmentation for viewpoint consistency
+    - CLAHE preprocessing to enhance IR/low-light contrast
+    - Multi-tile averaging per frame for robustness
     """
     tile_items = []
     for ts_idx, ts in enumerate(ts_list):
@@ -225,7 +224,6 @@ def extract_clip_embeddings(
                 images_orig.append(preprocess(Image.new("RGB", (224, 224))))
                 continue
             img = apply_clahe(img)
-
             images_orig.append(preprocess(img))
 
         orig_tensor = torch.stack(images_orig).to(device)
@@ -239,7 +237,7 @@ def extract_clip_embeddings(
         all_features[i : i + len(batch)] = feat_orig
 
         done = min(i + batch_size, total_tiles)
-        logger.info("  CLIP: %d/%d tiles (x2 with flip aug)", done, total_tiles)
+        logger.info("  CLIP: %d/%d tiles", done, total_tiles)
 
     n_frames = len(ts_list)
     frame_embeddings = np.zeros((n_frames, embed_dim), dtype=np.float32)
@@ -276,7 +274,7 @@ def find_best_k(embeddings: np.ndarray, k_range: range) -> int:
             best_score = score
             best_k = k
             marker = " <-- best so far"
-        logger.info("    K=%2d  silhouette=%.4f%s", k, score, marker)
+        logger.info("  K=%2d silhouette=%.4f%s", k, score, marker)
     logger.info("  => Best K = %d (silhouette = %.4f)", best_k, best_score)
     return best_k
 
@@ -376,8 +374,10 @@ def write_csv(
             cid = ts_to_cluster[ts]
             actual_ts = frames[ts][0]["ts"]
             hour = int(actual_ts[:2])
-            is_night = hour < 6 or hour >= 18
             modality = detect_frame_modality(frames[ts])
+            # ── แก้ตรงนี้: ใช้ modality จริงแทนการเดาจาก hour ────────
+            is_night = modality == "IR" or hour >= 18 or hour < 6
+            # ──────────────────────────────────────────────────────────
             for tile in frames[ts]:
                 writer.writerow(
                     [
@@ -434,6 +434,7 @@ def main():
         action="store_true",
         help="Disable structural features (CLIP-only mode)",
     )
+
     args = parser.parse_args()
     setup_logging()
 
@@ -442,14 +443,14 @@ def main():
     logger.info("(CLIP + Structural Features, IR-Optimized)")
     logger.info("=" * 60)
     logger.info("Source (READ-ONLY): %s", SRC_DIR)
-    logger.info("Output:             %s", DST_DIR)
-    logger.info("Tiles/frame:        %d", args.tiles_per_frame)
+    logger.info("Output: %s", DST_DIR)
+    logger.info("Tiles/frame: %d", args.tiles_per_frame)
     logger.info(
-        "Structural weight:  %s",
+        "Structural weight: %s",
         "disabled" if args.no_structural else args.structural_weight,
     )
-    logger.info("CLAHE:              enabled")
-    logger.info("Flip augmentation:  enabled")
+    logger.info("CLAHE: enabled")
+    # ── แก้ตรงนี้: ลบ log flip aug ที่ไม่มีจริงออก ──────────────────
 
     if not SRC_DIR.exists():
         logger.error("Source directory not found: %s", SRC_DIR)
@@ -471,7 +472,7 @@ def main():
     model.eval()
 
     logger.info(
-        "[3/8] Extracting CLIP embeddings (CLAHE + %d tiles/frame + flip)...",
+        "[3/8] Extracting CLIP embeddings (CLAHE + %d tiles/frame)...",
         args.tiles_per_frame,
     )
     clip_embeddings = extract_clip_embeddings(
@@ -550,7 +551,7 @@ def main():
         )
         ir_count = len(cluster_timestamps) - rgb_count
         logger.info(
-            "    location_%d: %d frames (%d tiles) [RGB=%d, IR=%d]",
+            "  location_%d: %d frames (%d tiles) [RGB=%d, IR=%d]",
             cid,
             len(cluster_timestamps),
             tile_count,
