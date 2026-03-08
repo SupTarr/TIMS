@@ -165,8 +165,17 @@ def extract_structural_batch(
     total = len(ts_list)
     for i, ts in enumerate(ts_list):
         reps = pick_representatives(frames[ts], tiles_per_frame)
-        feats = [extract_structural_features(r["path"]) for r in reps]
-        avg_feat = np.mean(feats, axis=0)
+        feats = []
+        for r in reps:
+            feat = extract_structural_features(r["path"])
+            if np.any(feat):
+                feats.append(feat)
+
+        if feats:
+            avg_feat = np.mean(feats, axis=0)
+        else:
+            avg_feat = np.zeros(EDGE_HIST_BINS + 16 + 3)
+
         all_features.append(avg_feat)
         if (i + 1) % 20 == 0 or i + 1 == total:
             logger.info("  Structural features: %d/%d", i + 1, total)
@@ -205,7 +214,6 @@ def extract_clip_embeddings(
     for i in range(0, total_tiles, batch_size):
         batch = tile_items[i : i + batch_size]
         images_orig = []
-        images_flip = []
 
         skipped = []
         for batch_idx, (_, item) in enumerate(batch):
@@ -215,12 +223,10 @@ def extract_clip_embeddings(
                 logger.warning("Failed to open %s: %s (skipping tile)", item["path"], e)
                 skipped.append(batch_idx)
                 images_orig.append(preprocess(Image.new("RGB", (224, 224))))
-                images_flip.append(preprocess(Image.new("RGB", (224, 224))))
                 continue
             img = apply_clahe(img)
 
             images_orig.append(preprocess(img))
-            images_flip.append(preprocess(img.transpose(Image.FLIP_LEFT_RIGHT)))
 
         orig_tensor = torch.stack(images_orig).to(device)
 

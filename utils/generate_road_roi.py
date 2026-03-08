@@ -154,6 +154,10 @@ def heatmap_to_polygon(
         return np.empty((0, 2), dtype=np.int32)
 
     largest = max(contours, key=cv2.contourArea)
+    img_h, img_w = heatmap.shape
+    if cv2.contourArea(largest) < (img_w * img_h * 0.01):
+        return np.empty((0, 2), dtype=np.int32)
+
     peri = cv2.arcLength(largest, True)
     approx = cv2.approxPolyDP(largest, APPROX_EPSILON_FRAC * peri, True)
     return approx.reshape(-1, 2).astype(np.int32)
@@ -250,7 +254,12 @@ def refine_polygon_with_lane_seg(
     contours, _ = cv2.findContours(combined, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         return base_polygon
+
     largest = max(contours, key=cv2.contourArea)
+    if cv2.contourArea(largest) < (img_w * img_h * 0.01):
+        logger.info("  Mask is too small (likely noise), falling back to labels only")
+        return base_polygon
+
     peri = cv2.arcLength(largest, True)
     approx = cv2.approxPolyDP(largest, APPROX_EPSILON_FRAC * peri, True)
     refined = approx.reshape(-1, 2).astype(np.int32)
