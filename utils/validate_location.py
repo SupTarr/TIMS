@@ -230,7 +230,7 @@ def validate(
                 sim_to_assigned = 0.0
                 nearest_loc = "CORRUPTED_FILE"
                 nearest_sim = 0.0
-                is_mismatch = True
+                status = "corrupted"
             else:
                 sims_row = cosine_similarity(embeddings[global_i].reshape(1, -1), row)[
                     0
@@ -238,9 +238,17 @@ def validate(
                 nearest_idx = int(sims_row.argmax())
                 nearest_loc = centroid_locs[nearest_idx]
                 nearest_sim = float(sims_row[nearest_idx])
-                is_mismatch = (
-                    not np.isnan(sim_to_assigned) and sim_to_assigned < threshold
+
+                below_threshold = (
+                    not np.isnan(sim_to_assigned)
+                    and sim_to_assigned < threshold
                 )
+                if below_threshold and nearest_loc != assigned_loc:
+                    status = "mismatch"
+                elif below_threshold:
+                    status = "outlier"
+                else:
+                    status = "ok"
 
             for tile in all_frames[frame_key]:
                 results.append(
@@ -249,7 +257,7 @@ def validate(
                         "assigned_location": f"location_{assigned_loc}",
                         "modality": mod,
                         "cosine_similarity": round(sim_to_assigned, 4),
-                        "is_mismatch": is_mismatch,
+                        "status": status,
                         "nearest_location": f"location_{nearest_loc}",
                         "nearest_similarity": round(nearest_sim, 4),
                     }
@@ -269,7 +277,7 @@ def write_report(results: list[dict], report_path: Path) -> None:
         "assigned_location",
         "modality",
         "cosine_similarity",
-        "is_mismatch",
+        "status",
         "nearest_location",
         "nearest_similarity",
     ]
@@ -285,51 +293,73 @@ def print_summary(results: list[dict]) -> None:
     from collections import Counter
 
     total = len(results)
-    mismatched = [r for r in results if r["is_mismatch"]]
-    n_mismatch = len(mismatched)
+    mismatched = [r for r in results if r["status"] == "mismatch"]
+    outliers = [r for r in results if r["status"] == "outlier"]
+    corrupted = [r for r in results if r["status"] == "corrupted"]
+    n_ok = total - len(mismatched) - len(outliers) - len(corrupted)
 
     logger.info("=" * 60)
     logger.info("VALIDATION SUMMARY")
     logger.info("=" * 60)
     logger.info("Total images checked : %d", total)
     logger.info(
-        "Mismatched images    : %d (%.1f%%)",
-        n_mismatch,
-        100 * n_mismatch / max(total, 1),
+        "True mismatches      : %d (%.1f%%)  ← nearest ≠ assigned",
+        len(mismatched),
+        100 * len(mismatched) / max(total, 1),
     )
-    logger.info("Clean images         : %d", total - n_mismatch)
+    logger.info(
+        "Outliers             : %d (%.1f%%)  ← low sim but no better location",
+        len(outliers),
+        100 * len(outliers) / max(total, 1),
+    )
+    if corrupted:
+        logger.info("Corrupted            : %d", len(corrupted))
+    logger.info("Clean images         : %d", n_ok)
 
     loc_counts: dict[str, dict] = {}
     for r in results:
         loc = r["assigned_location"]
         if loc not in loc_counts:
-            loc_counts[loc] = {"total": 0, "mismatch": 0}
+            loc_counts[loc] = {"total": 0, "mismatch": 0, "outlier": 0}
         loc_counts[loc]["total"] += 1
-        if r["is_mismatch"]:
+        if r["status"] == "mismatch":
             loc_counts[loc]["mismatch"] += 1
+        elif r["status"] == "outlier":
+            loc_counts[loc]["outlier"] += 1
 
-    logger.info("-" * 60)
-    logger.info("%-15s  %8s  %10s  %s", "Location", "Total", "Mismatched", "Rate")
-    logger.info("-" * 60)
+    logger.info("-" * 68)
+    logger.info(
+        "%-15s  %6s  %9s  %8s  %s",
+        "Location", "Total", "Mismatch", "Outlier", "Mismatch%",
+    )
+    logger.info("-" * 68)
     for loc in sorted(loc_counts):
         t = loc_counts[loc]["total"]
         m = loc_counts[loc]["mismatch"]
+        o = loc_counts[loc]["outlier"]
         rate = 100 * m / max(t, 1)
         flag = "  ⚠" if m > 0 else ""
-        logger.info("%-15s  %8d  %10d  %5.1f%%%s", loc, t, m, rate, flag)
-    logger.info("-" * 60)
+        logger.info("%-15s  %6d  %9d  %8d  %5.1f%%%s", loc, t, m, o, rate, flag)
+    logger.info("-" * 68)
 
     if mismatched:
         remap = Counter(
             (r["assigned_location"], r["nearest_location"])
             for r in mismatched
-            if r["assigned_location"] != r["nearest_location"]
         )
         if remap:
             logger.info("")
             logger.info("Suggested reclassifications:")
             for (src, dst), count in remap.most_common():
                 logger.info("  %s → %s : %d images", src, dst, count)
+
+    if outliers:
+        outlier_locs = Counter(r["assigned_location"] for r in outliers)
+        logger.info("")
+        logger.info("Outlier hotspots (high internal diversity):")
+        for loc, count in outlier_locs.most_common(5):
+            t = loc_counts[loc]["total"]
+            logger.info("  %s : %d / %d (%.1f%%)", loc, count, t, 100 * count / t)
 
 
 # ──────────────────────────────────────────────────────────────────────
