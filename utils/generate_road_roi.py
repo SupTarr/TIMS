@@ -622,15 +622,14 @@ def pick_annotation_image(loc_dir: Path) -> Optional[Path]:
     if not all_imgs:
         return None
 
+    shuffled_imgs = list(all_imgs)
+    random.shuffle(shuffled_imgs)
+
     for period_pref in ("day", "night", "IR"):
-        candidates = []
-        for p in all_imgs:
+        for p in shuffled_imgs:
             parsed = parse_filename(p.name)
             if parsed and time_period(parsed[1], p) == period_pref:
-                candidates.append(p)
-
-        if candidates:
-            return random.choice(candidates)
+                return p
 
     return random.choice(all_imgs)
 

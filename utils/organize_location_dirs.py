@@ -67,6 +67,9 @@ def organize():
         image_stems = {p.stem for p in images_dir.iterdir() if p.is_file()}
         orphans = 0
         for label_file in list(labels_dir.glob("*.txt")):
+            if label_file.name == "classes.txt":
+                continue
+
             if label_file.stem not in image_stems:
                 label_file.unlink()
                 orphans += 1

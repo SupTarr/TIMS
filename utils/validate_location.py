@@ -208,14 +208,14 @@ def validate(
                         (loc_emb_sum[assigned_loc] - embeddings[global_i]) / (n - 1)
                     ).reshape(1, -1)
                     loo_centroid = normalize(loo_centroid)
+                    sim_to_assigned = float(
+                        cosine_similarity(
+                            embeddings[global_i].reshape(1, -1), loo_centroid
+                        )[0, 0]
+                    )
                 else:
                     loo_centroid = np.zeros((1, embeddings.shape[1]), dtype=np.float32)
-
-                sim_to_assigned = float(
-                    cosine_similarity(
-                        embeddings[global_i].reshape(1, -1), loo_centroid
-                    )[0, 0]
-                )
+                    sim_to_assigned = float("nan")
 
                 assigned_idx = centroid_locs.index(assigned_loc)
                 row = np.copy(other_centroid_matrix)
