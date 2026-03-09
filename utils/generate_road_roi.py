@@ -50,10 +50,7 @@ from common import (
     time_period,
     parse_filename,
 )
-from lane_estimation import (
-    estimate_cars_per_lane,
-    estimate_num_lanes,
-)
+from lane_estimation import estimate_cars_per_lane, estimate_num_lanes
 
 logger = logging.getLogger(__name__)
 
@@ -74,10 +71,6 @@ VERTEX_COLOR = (0, 0, 255)
 TEXT_COLOR = (255, 255, 255)
 
 WINDOW_NAME = "Road ROI Annotation"
-
-LANE_KDE_BANDWIDTH_DEFAULT = (
-    35
-)
 
 
 # ──────────────────────────────────────────────────────────────────────

@@ -28,9 +28,20 @@ from common import (
     setup_logging,
 )
 from generate_road_roi import load_label_data, prompt_positive_int
-from lane_estimation import estimate_cars_per_lane, estimate_num_lanes
+from lane_estimation import (
+    estimate_cars_per_lane,
+    estimate_num_lanes,
+    estimate_num_lanes_consensus,
+    estimate_num_lanes_gmm,
+)
 
 logger = logging.getLogger(__name__)
+
+LANE_ESTIMATORS = {
+    "kde": estimate_num_lanes,
+    "gmm": estimate_num_lanes_gmm,
+    "consensus": estimate_num_lanes_consensus,
+}
 
 
 def backfill(
@@ -38,9 +49,12 @@ def backfill(
     location_id: int | None = None,
     dry_run: bool = False,
     manual_override: bool = False,
+    method: str = "consensus",
 ) -> None:
     """Estimate and write num_lanes / cars_per_lane for existing ROI entries."""
 
+    lane_estimator = LANE_ESTIMATORS.get(method, estimate_num_lanes_consensus)
+    logger.info("Lane estimation method: %s", method)
     roi_map = load_road_roi(roi_path)
     locations = discover_locations(TRAIN_BY_LOCATION_PATH)
 
@@ -78,7 +92,7 @@ def backfill(
             img_h,
         )
 
-        num_lanes = estimate_num_lanes(polygon, label_data)
+        num_lanes = lane_estimator(polygon, label_data)
         cars_per_lane = estimate_cars_per_lane(polygon, label_data, num_lanes)
 
         existing_lanes = entry.get("num_lanes")
@@ -187,11 +201,18 @@ def main() -> None:
         action="store_true",
         help="Prompt to accept or edit each estimated value",
     )
+    parser.add_argument(
+        "--method",
+        choices=["kde", "gmm", "consensus"],
+        default="consensus",
+        help="Lane estimation method (default: consensus)",
+    )
     args = parser.parse_args()
     backfill(
         location_id=args.location,
         dry_run=args.dry_run,
         manual_override=args.manual_override,
+        method=args.method,
     )
 
 
