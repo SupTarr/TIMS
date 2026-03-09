@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
-from common import (
+from ..common import (
     TRAIN_BY_LOCATION_PATH as BASE_DIR,
     CLASS_NAMES,
     ROI_CONFIG_PATH,

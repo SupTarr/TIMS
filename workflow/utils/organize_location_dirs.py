@@ -10,7 +10,7 @@ For each location_N folder:
 import logging
 import shutil
 
-from common import (
+from ..common import (
     IMAGE_EXTENSIONS,
     TIMS_FINAL_LABELS_PATH,
     TRAIN_BY_LOCATION_PATH,

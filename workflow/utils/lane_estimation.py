@@ -22,7 +22,7 @@ from scipy.signal import find_peaks
 from sklearn.mixture import GaussianMixture
 from sklearn.neighbors import KernelDensity
 
-from common import LANE_VEHICLE_CLASSES
+from ..common import LANE_VEHICLE_CLASSES
 
 logger = logging.getLogger(__name__)
 

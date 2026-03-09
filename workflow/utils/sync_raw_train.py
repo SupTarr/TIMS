@@ -15,7 +15,7 @@ Usage:
 import argparse
 import logging
 
-from common import (
+from ..common import (
     IMAGE_EXTENSIONS,
     RAW_TRAIN_PATH,
     TRAIN_BY_LOCATION_PATH,

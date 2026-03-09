@@ -28,16 +28,18 @@ from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import normalize
 
-from cluster_by_location import (
+from .clip_features import (
     CLIP_MODEL,
-    PCA_COMPONENTS,
-    STRUCTURAL_WEIGHT,
     TILES_PER_FRAME,
     extract_clip_embeddings,
-    extract_structural_batch,
     select_device,
 )
-from common import (
+from ..cluster_by_location import (
+    PCA_COMPONENTS,
+    STRUCTURAL_WEIGHT,
+)
+from .structural_features import extract_structural_batch
+from ..common import (
     TRAIN_BY_LOCATION_PATH,
     detect_frame_modality,
     discover_locations,

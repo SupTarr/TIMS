@@ -10,7 +10,7 @@ Usage:
 import logging
 import shutil
 
-from common import (
+from .common import (
     CCTV_PATTERN,
     IMAGE_EXTENSIONS,
     RAW_TRAIN_PATH,

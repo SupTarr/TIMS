@@ -31,7 +31,7 @@ import sys
 
 import numpy as np
 
-from common import (
+from .common import (
     DENSITY_OUTPUT_PATH as OUTPUT_DIR,
     IMAGE_EXTENSIONS,
     TRAIN_BY_LOCATION_PATH,
