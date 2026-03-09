@@ -140,7 +140,6 @@ def compute_density_ratio_bev(
         if veh_len <= 0:
             continue
 
-        gap_factor = CLASS_WEIGHTS.get(cls_id, 1.0) * 0.0
         total_occupied_m += veh_len * 1.3
 
     total_capacity_m = num_lanes * road_length_m

@@ -74,21 +74,26 @@ def order_quadrilateral(pts: np.ndarray) -> np.ndarray:
     """
     Order 4 points as [top-left, top-right, bottom-right, bottom-left].
 
-    Uses the sum (x+y) and difference (y-x) heuristic:
-      - top-left     has the smallest  x+y
-      - bottom-right has the largest   x+y
-      - top-right    has the smallest  y-x
-      - bottom-left  has the largest   y-x
+    Sorts vertices by angle from their centroid to obtain a consistent
+    clockwise winding, then rotates so the point with the smallest
+    (x + y) — i.e. closest to the top-left corner — comes first.
+
+    This avoids the classic sum/diff heuristic which can assign the
+    same physical vertex to multiple corners when the quadrilateral
+    is oriented diagonally.
     """
     pts = np.array(pts, dtype=np.float32).reshape(4, 2)
-    ordered = np.zeros((4, 2), dtype=np.float32)
-    s = pts.sum(axis=1)
-    d = np.diff(pts, axis=1).ravel()
-    ordered[0] = pts[np.argmin(s)]  # TL
-    ordered[2] = pts[np.argmax(s)]  # BR
-    ordered[1] = pts[np.argmin(d)]  # TR
-    ordered[3] = pts[np.argmax(d)]  # BL
-    return ordered
+    cx, cy = pts.mean(axis=0)
+
+    angles = np.arctan2(pts[:, 1] - cy, pts[:, 0] - cx)
+    cw_order = np.argsort(-angles)
+    pts = pts[cw_order]
+
+    sums = pts.sum(axis=1)
+    start = int(np.argmin(sums))
+    pts = np.roll(pts, -start, axis=0)
+
+    return pts
 
 
 def reduce_to_quad(polygon: np.ndarray) -> np.ndarray:
@@ -216,6 +221,13 @@ def compute_bev_scale(
     left_height = float(np.linalg.norm(ordered[3] - ordered[0]))
     right_height = float(np.linalg.norm(ordered[2] - ordered[1]))
     avg_along_px = (left_height + right_height) / 2.0
+
+    if avg_along_px < 1.0:
+        logger.warning(
+            "BEV quad along-road extent is near-zero (%.1f px) — "
+            "the quad may be degenerate",
+            avg_along_px,
+        )
 
     total_cross_m = max(num_lanes, 1) * lane_width_m
     mpp = total_cross_m / avg_cross_px if avg_cross_px > 0 else 0.05
