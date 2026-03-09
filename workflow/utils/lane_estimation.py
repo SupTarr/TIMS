@@ -40,13 +40,13 @@ MIN_VEHICLES_FOR_CPL_ESTIMATE = 2
 LANE_TO_CAR_WIDTH_RATIO = 2.05
 
 CLASS_GAP_FACTORS: dict[int, float] = {
-    0: 0.45,   # full_truck
-    1: 0.50,   # full_trailer
-    2: 0.50,   # semi_trailer
-    3: 0.25,   # modified_car
-    7: 0.25,   # car
-    8: 0.25,   # car_7
-    9: 0.35,   # small_bus
+    0: 0.45,  # full_truck
+    1: 0.50,  # full_trailer
+    2: 0.50,  # semi_trailer
+    3: 0.25,  # modified_car
+    7: 0.25,  # car
+    8: 0.25,  # car_7
+    9: 0.35,  # small_bus
     10: 0.40,  # medium_bus
     11: 0.45,  # large_bus
     12: 0.30,  # pickup

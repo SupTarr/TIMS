@@ -15,6 +15,7 @@ from .parsing import parse_filename
 # Frame grouping
 # ──────────────────────────────────────────────────────────────────────
 
+
 def group_tiles_by_frame(src_dir: Path) -> dict[str, list[dict]]:
     """
     Group all image files by their frame key (``{hex}_{timestamp}``).
@@ -43,6 +44,7 @@ def group_tiles_by_frame(src_dir: Path) -> dict[str, list[dict]]:
 # ──────────────────────────────────────────────────────────────────────
 # Tile selection
 # ──────────────────────────────────────────────────────────────────────
+
 
 def pick_representative(tiles: list[dict]) -> dict:
     """Pick single median tile (for preview grid)."""

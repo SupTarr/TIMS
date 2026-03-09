@@ -16,7 +16,12 @@ from typing import Optional
 import cv2
 import numpy as np
 
-from ..common import IMAGE_EXTENSIONS, discover_locations, parse_filename, time_period
+from ..common import (
+    IMAGE_EXTENSIONS,
+    LANE_VEHICLE_CLASSES,
+    discover_locations,
+    parse_yolo_labels,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -246,7 +251,7 @@ def preview_existing(config_path: Path):
 # Pick a good representative image for annotation
 # ──────────────────────────────────────────────────────────────────────
 def pick_annotation_image(loc_dir: Path) -> Optional[Path]:
-    """Pick a random daytime image (if available) for clearest annotation."""
+    """Pick an image with the most cars for clearest annotation."""
     images_dir = loc_dir / "images"
     if not images_dir.is_dir():
         images_dir = loc_dir
@@ -258,13 +263,22 @@ def pick_annotation_image(loc_dir: Path) -> Optional[Path]:
     if not all_imgs:
         return None
 
-    shuffled_imgs = list(all_imgs)
-    random.shuffle(shuffled_imgs)
+    labels_dir = loc_dir / "labels"
+    if not labels_dir.is_dir():
+        labels_dir = loc_dir
 
-    for period_pref in ("day", "night", "IR"):
-        for p in shuffled_imgs:
-            parsed = parse_filename(p.name)
-            if parsed and time_period(parsed[1], p) == period_pref:
-                return p
+    best_img = None
+    max_cars = -1
+
+    for p in all_imgs:
+        label_path = labels_dir / f"{p.stem}.txt"
+        boxes = parse_yolo_labels(label_path)
+        count = sum(1 for b in boxes if b[0] in LANE_VEHICLE_CLASSES)
+        if count > max_cars:
+            max_cars = count
+            best_img = p
+
+    if best_img is not None and max_cars >= 0:
+        return best_img
 
     return random.choice(all_imgs)

@@ -17,6 +17,7 @@ from .paths import ROI_CONFIG_PATH, TRAIN_BY_LOCATION_PATH
 # Location discovery
 # ──────────────────────────────────────────────────────────────────────
 
+
 def discover_locations(base_dir: Optional[Path] = None) -> list[tuple[int, Path]]:
     """Find all location_* folders sorted by numeric id."""
     base_dir = base_dir or TRAIN_BY_LOCATION_PATH
@@ -35,6 +36,7 @@ def discover_locations(base_dir: Optional[Path] = None) -> list[tuple[int, Path]
 # ──────────────────────────────────────────────────────────────────────
 # ROI config I/O
 # ──────────────────────────────────────────────────────────────────────
+
 
 def load_road_roi(config_path: Optional[Path] = None) -> dict[str, dict]:
     """
@@ -95,6 +97,7 @@ def save_road_roi(
 # ──────────────────────────────────────────────────────────────────────
 # ROI vehicle filtering
 # ──────────────────────────────────────────────────────────────────────
+
 
 def filter_vehicles_in_roi(
     boxes: list[tuple[int, float, float, float, float]],
