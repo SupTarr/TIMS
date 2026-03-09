@@ -28,24 +28,22 @@ from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import normalize
 
-from .clip_features import (
+from .utils.clip_features import (
     CLIP_MODEL,
     TILES_PER_FRAME,
     extract_clip_embeddings,
     select_device,
 )
-from ..cluster_by_location import (
+from .common import (
     PCA_COMPONENTS,
     STRUCTURAL_WEIGHT,
-)
-from .structural_features import extract_structural_batch
-from ..common import (
     TRAIN_BY_LOCATION_PATH,
     detect_frame_modality,
     discover_locations,
     group_tiles_by_frame,
     setup_logging,
 )
+from .utils.structural_features import extract_structural_batch
 
 logger = logging.getLogger(__name__)
 

@@ -49,7 +49,9 @@ from .utils.clip_features import (
 from .common import (
     CLUSTER_CSV_PATH,
     CLUSTER_PREVIEW_PATH,
+    PCA_COMPONENTS,
     RAW_TRAIN_PATH as SRC_DIR,
+    STRUCTURAL_WEIGHT,
     TRAIN_BY_LOCATION_PATH as DST_DIR,
     detect_frame_modality,
     group_tiles_by_frame,
@@ -64,10 +66,8 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ──────────────────────────────────────────────────────────────────────
 
-PCA_COMPONENTS = 50
 K_RANGE = range(2, 16)
 PREVIEW_SAMPLES = 5
-STRUCTURAL_WEIGHT = 0.3
 
 
 # ──────────────────────────────────────────────────────────────────────
