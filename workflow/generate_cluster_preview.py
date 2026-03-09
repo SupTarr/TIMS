@@ -235,6 +235,9 @@ def main():
         polygon = roi_entry.get("polygon", np.empty((0, 2), dtype=np.int32))
         has_roi = len(polygon) >= 3
 
+        num_lanes = roi_entry.get("num_lanes", "?")
+        cars_per_lane = roi_entry.get("cars_per_lane", "?")
+
         sampled_ts = pick_sample_frames(frames, n_samples)
 
         for col in range(n_samples):
@@ -257,6 +260,19 @@ def main():
                             img = draw_boxes(img, boxes)
 
                     ax.imshow(img)
+                    if col == 0:
+                        lane_text = f"{num_lanes} lanes / {cars_per_lane} cars·lane"
+                        ax.text(
+                            0.02,
+                            0.98,
+                            lane_text,
+                            transform=ax.transAxes,
+                            fontsize=7,
+                            color="white",
+                            va="top",
+                            ha="left",
+                            bbox=dict(boxstyle="round,pad=0.2", fc="black", alpha=0.6),
+                        )
                 except Exception:
                     ax.text(
                         0.5,
@@ -273,12 +289,17 @@ def main():
             else:
                 ax.set_visible(False)
 
-        roi_status = f", ROI {len(polygon)} pts" if has_roi else ""
+        if has_roi:
+            roi_status = f"\nROI: {len(polygon)} pts\n{num_lanes} lanes\n{cars_per_lane} cars/lane"
+        else:
+            roi_status = f"\n{num_lanes} lanes\n{cars_per_lane} cars/lane"
+
         axes[row_idx][0].set_ylabel(
-            f"location_{loc_id}\n({n_frames} frames{roi_status})",
-            fontsize=9,
+            f"location_{loc_id}\n({n_frames} frames){roi_status}",
+            fontsize=12,
             rotation=0,
-            labelpad=100,
+            labelpad=15,
+            ha="right",
             va="center",
         )
 
