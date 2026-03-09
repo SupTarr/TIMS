@@ -43,6 +43,7 @@ from .common import (
     save_road_roi,
     setup_logging,
 )
+from .utils.bev_transform import compute_bev_config
 from .utils.lane_estimation import estimate_cars_per_lane, estimate_num_lanes
 from .utils.roi_annotator import (
     ROIAnnotator,
@@ -88,12 +89,21 @@ def main():
         default=None,
         help=f"Output JSON path (default: {ROI_CONFIG_PATH})",
     )
+    parser.add_argument(
+        "--recompute-bev",
+        action="store_true",
+        help="Batch-recompute BEV config for all existing ROI entries (no GUI)",
+    )
     args = parser.parse_args()
 
     config_path = Path(args.output) if args.output else ROI_CONFIG_PATH
 
     if args.preview_only:
         preview_existing(config_path)
+        return
+
+    if args.recompute_bev:
+        _batch_recompute_bev(config_path)
         return
 
     locations = discover_locations()
@@ -195,18 +205,62 @@ def main():
             max_cars,
         )
 
-        existing[loc_name] = {
+        entry_data: dict = {
             "polygon": result,
             "image_size": [img_w, img_h],
             "num_lanes": num_lanes,
             "cars_per_lane": cars_per_lane,
         }
+
+        # Compute BEV homography config
+        bev_cfg = compute_bev_config(result_poly, num_lanes)
+        if bev_cfg:
+            entry_data.update(bev_cfg)
+            logger.info(
+                "  BEV: road %.1f×%.1f m, %.3f m/px",
+                bev_cfg["road_width_m"],
+                bev_cfg["road_length_m"],
+                bev_cfg["meters_per_pixel"],
+            )
+
+        existing[loc_name] = entry_data
         logger.info("  %s: saved %d vertices + lane metadata", loc_name, len(result))
 
     out = save_road_roi(existing, config_path)
     n_defined = sum(1 for v in existing.values() if v.get("polygon"))
     logger.info("Saved %d ROI polygon(s) to %s", n_defined, out)
     logger.info("Done!")
+
+
+def _batch_recompute_bev(config_path: Path) -> None:
+    """Recompute BEV config for all existing ROI entries without opening GUI."""
+    if not config_path.exists():
+        logger.error("ROI config not found: %s", config_path)
+        sys.exit(1)
+
+    data: dict = json.loads(config_path.read_text())
+    updated = 0
+    for loc_name, entry in data.items():
+        polygon = entry.get("polygon", [])
+        num_lanes = entry.get("num_lanes", 0)
+        if len(polygon) < 4 or num_lanes < 1:
+            logger.warning("%s: skipped (polygon=%d verts, lanes=%d)",
+                           loc_name, len(polygon), num_lanes)
+            continue
+        poly_arr = np.array(polygon, dtype=np.float32)
+        bev_cfg = compute_bev_config(poly_arr, num_lanes)
+        if bev_cfg:
+            entry.update(bev_cfg)
+            updated += 1
+            logger.info("%s: road %.1f×%.1f m, %.3f m/px",
+                        loc_name,
+                        bev_cfg["road_width_m"],
+                        bev_cfg["road_length_m"],
+                        bev_cfg["meters_per_pixel"])
+
+    save_road_roi(data, config_path)
+    logger.info("Recomputed BEV for %d / %d locations → %s",
+                updated, len(data), config_path)
 
 
 if __name__ == "__main__":
