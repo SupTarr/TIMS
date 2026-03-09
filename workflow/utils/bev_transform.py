@@ -30,43 +30,40 @@ logger = logging.getLogger(__name__)
 # Keyed by YOLO class id — same numbering as common/parsing.py
 # ──────────────────────────────────────────────────────────────────────
 VEHICLE_LENGTHS_M: dict[int, float] = {
-    0: 10.0,   # 10_full_truck
-    1: 16.5,   # 11_full_trailer
-    2: 16.5,   # 12_semi_trailer
-    3: 4.5,    # 13_modified_car
-    4: 0.0,    # 14_pedestrian  (excluded)
-    5: 1.8,    # 1_bicycle
-    6: 2.2,    # 2_motorcycle
-    7: 4.5,    # 3_car
-    8: 4.5,    # 4_car_7
-    9: 7.0,    # 5_small_bus
-    10: 9.0,   # 6_medium_bus
+    0: 10.0,  # 10_full_truck
+    1: 16.5,  # 11_full_trailer
+    2: 16.5,  # 12_semi_trailer
+    3: 4.5,  # 13_modified_car
+    4: 0.0,  # 14_pedestrian  (excluded)
+    5: 1.8,  # 1_bicycle
+    6: 2.2,  # 2_motorcycle
+    7: 4.5,  # 3_car
+    8: 4.5,  # 4_car_7
+    9: 7.0,  # 5_small_bus
+    10: 9.0,  # 6_medium_bus
     11: 12.0,  # 7_large_bus
-    12: 5.0,   # 8_pickup
-    13: 7.5,   # 9_truck
+    12: 5.0,  # 8_pickup
+    13: 7.5,  # 9_truck
 }
 
 VEHICLE_WIDTHS_M: dict[int, float] = {
-    0: 2.5,    # full_truck
-    1: 2.5,    # full_trailer
-    2: 2.5,    # semi_trailer
-    3: 1.8,    # modified_car
-    4: 0.0,    # pedestrian
-    5: 0.6,    # bicycle
-    6: 0.8,    # motorcycle
-    7: 1.8,    # car
-    8: 1.8,    # car_7
-    9: 2.3,    # small_bus
-    10: 2.5,   # medium_bus
-    11: 2.5,   # large_bus
-    12: 1.9,   # pickup
-    13: 2.5,   # truck
+    0: 2.5,  # full_truck
+    1: 2.5,  # full_trailer
+    2: 2.5,  # semi_trailer
+    3: 1.8,  # modified_car
+    4: 0.0,  # pedestrian
+    5: 0.6,  # bicycle
+    6: 0.8,  # motorcycle
+    7: 1.8,  # car
+    8: 1.8,  # car_7
+    9: 2.3,  # small_bus
+    10: 2.5,  # medium_bus
+    11: 2.5,  # large_bus
+    12: 1.9,  # pickup
+    13: 2.5,  # truck
 }
 
-# Standard Thai lane width (metres)
 STANDARD_LANE_WIDTH_M = 3.5
-
-# BEV output resolution: pixels per metre (controls BEV image detail)
 BEV_PPM_DEFAULT = 20.0
 
 
@@ -87,10 +84,10 @@ def order_quadrilateral(pts: np.ndarray) -> np.ndarray:
     ordered = np.zeros((4, 2), dtype=np.float32)
     s = pts.sum(axis=1)
     d = np.diff(pts, axis=1).ravel()
-    ordered[0] = pts[np.argmin(s)]   # TL
-    ordered[2] = pts[np.argmax(s)]   # BR
-    ordered[1] = pts[np.argmin(d)]   # TR
-    ordered[3] = pts[np.argmax(d)]   # BL
+    ordered[0] = pts[np.argmin(s)]  # TL
+    ordered[2] = pts[np.argmax(s)]  # BR
+    ordered[1] = pts[np.argmin(d)]  # TR
+    ordered[3] = pts[np.argmax(d)]  # BL
     return ordered
 
 
@@ -114,13 +111,16 @@ def reduce_to_quad(polygon: np.ndarray) -> np.ndarray:
         if len(approx) == 4:
             return approx.reshape(4, 2)
 
-    # Fallback: pick 4 extreme points from convex hull
     hull = cv2.convexHull(contour).reshape(-1, 2)
     s = hull.sum(axis=1)
     d = np.diff(hull, axis=1).ravel()
-    indices = [int(np.argmin(s)), int(np.argmin(d)),
-               int(np.argmax(s)), int(np.argmax(d))]
-    # Deduplicate while preserving order
+    indices = [
+        int(np.argmin(s)),
+        int(np.argmin(d)),
+        int(np.argmax(s)),
+        int(np.argmax(d)),
+    ]
+
     seen: set[int] = set()
     unique: list[int] = []
     for i in indices:
@@ -128,7 +128,6 @@ def reduce_to_quad(polygon: np.ndarray) -> np.ndarray:
             seen.add(i)
             unique.append(i)
     if len(unique) < 4:
-        # Add remaining hull vertices
         for i in range(len(hull)):
             if i not in seen:
                 unique.append(i)
@@ -142,9 +141,7 @@ def reduce_to_quad(polygon: np.ndarray) -> np.ndarray:
 # Homography computation
 # ──────────────────────────────────────────────────────────────────────
 def compute_homography(
-    src_quad: np.ndarray,
-    dst_width: float,
-    dst_height: float,
+    src_quad: np.ndarray, dst_width: float, dst_height: float
 ) -> tuple[np.ndarray, np.ndarray, tuple[int, int]]:
     """
     Compute the 3×3 perspective transform from *src_quad* to a rectangle.
@@ -163,12 +160,15 @@ def compute_homography(
     bev_size : (int, int) — (width, height) of BEV image
     """
     src = np.array(src_quad, dtype=np.float32).reshape(4, 2)
-    dst = np.array([
-        [0, 0],
-        [dst_width - 1, 0],
-        [dst_width - 1, dst_height - 1],
-        [0, dst_height - 1],
-    ], dtype=np.float32)
+    dst = np.array(
+        [
+            [0, 0],
+            [dst_width - 1, 0],
+            [dst_width - 1, dst_height - 1],
+            [0, dst_height - 1],
+        ],
+        dtype=np.float32,
+    )
 
     M = cv2.getPerspectiveTransform(src, dst)
     M_inv = cv2.getPerspectiveTransform(dst, src)
@@ -198,9 +198,7 @@ def transform_points(pts: np.ndarray, M: np.ndarray) -> np.ndarray:
 # Scale calibration
 # ──────────────────────────────────────────────────────────────────────
 def compute_bev_scale(
-    src_quad: np.ndarray,
-    num_lanes: int,
-    lane_width_m: float = STANDARD_LANE_WIDTH_M,
+    src_quad: np.ndarray, num_lanes: int, lane_width_m: float = STANDARD_LANE_WIDTH_M
 ) -> tuple[float, float, float]:
     """
     Calibrate the BEV rectangle dimensions and metres-per-pixel.
@@ -211,13 +209,10 @@ def compute_bev_scale(
     Returns (bev_width_px, bev_height_px, meters_per_pixel).
     """
     ordered = order_quadrilateral(src_quad)
-
-    # Cross-road width  = average of top edge and bottom edge
     top_width = float(np.linalg.norm(ordered[1] - ordered[0]))
     bot_width = float(np.linalg.norm(ordered[2] - ordered[3]))
     avg_cross_px = (top_width + bot_width) / 2.0
 
-    # Along-road height = average of left edge and right edge
     left_height = float(np.linalg.norm(ordered[3] - ordered[0]))
     right_height = float(np.linalg.norm(ordered[2] - ordered[1]))
     avg_along_px = (left_height + right_height) / 2.0
@@ -226,17 +221,14 @@ def compute_bev_scale(
     mpp = total_cross_m / avg_cross_px if avg_cross_px > 0 else 0.05
     road_length_m = avg_along_px * mpp
 
-    # BEV output: use a fixed PPM so the image is a sensible size
     ppm = BEV_PPM_DEFAULT
     bev_w = total_cross_m * ppm
     bev_h = road_length_m * ppm
 
-    # Clamp to reasonable range
     bev_w = max(bev_w, 50)
     bev_h = max(bev_h, 50)
 
-    actual_mpp = total_cross_m / bev_w  # = 1/ppm
-
+    actual_mpp = total_cross_m / bev_w
     return bev_w, bev_h, actual_mpp
 
 
@@ -244,9 +236,7 @@ def compute_bev_scale(
 # High-level helper
 # ──────────────────────────────────────────────────────────────────────
 def compute_bev_config(
-    polygon: np.ndarray,
-    num_lanes: int,
-    lane_width_m: float = STANDARD_LANE_WIDTH_M,
+    polygon: np.ndarray, num_lanes: int, lane_width_m: float = STANDARD_LANE_WIDTH_M
 ) -> dict:
     """
     One-call helper: compute all BEV parameters from a polygon + lane count.
@@ -278,7 +268,11 @@ def compute_bev_config(
 
     logger.info(
         "  BEV config: %dx%d px, %.3f m/px, road %.1f×%.1f m",
-        bev_size[0], bev_size[1], mpp, road_width_m, road_length_m,
+        bev_size[0],
+        bev_size[1],
+        mpp,
+        road_width_m,
+        road_length_m,
     )
 
     return {

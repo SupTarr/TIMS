@@ -42,10 +42,7 @@ from .common import (
     parse_yolo_labels,
     setup_logging,
 )
-from .utils.bev_transform import (
-    VEHICLE_LENGTHS_M,
-    transform_point,
-)
+from .utils.bev_transform import VEHICLE_LENGTHS_M, transform_point
 
 logger = logging.getLogger(__name__)
 
@@ -136,16 +133,15 @@ def compute_density_ratio_bev(
     if not inside:
         return 0.0, 0.0
 
-    # Sum physical along-road length for each vehicle inside ROI
     total_occupied_m = 0.0
     for b in inside:
         cls_id = b[0]
         veh_len = VEHICLE_LENGTHS_M.get(cls_id, 0.0)
         if veh_len <= 0:
             continue
-        # Add inter-vehicle gap (~30% of vehicle length)
-        gap_factor = CLASS_WEIGHTS.get(cls_id, 1.0) * 0.0  # no double-count
-        total_occupied_m += veh_len * 1.3  # vehicle + 30% gap
+
+        gap_factor = CLASS_WEIGHTS.get(cls_id, 1.0) * 0.0
+        total_occupied_m += veh_len * 1.3
 
     total_capacity_m = num_lanes * road_length_m
     ratio = total_occupied_m / total_capacity_m if total_capacity_m > 0 else 0.0
@@ -160,7 +156,9 @@ DENSITY_CLASSES = ("light", "medium", "high", "full")
 
 
 def classify_density(
-    dry_run: bool = False, verbose: bool = False, histogram: bool = False,
+    dry_run: bool = False,
+    verbose: bool = False,
+    histogram: bool = False,
     no_bev: bool = False,
 ) -> None:
     """Iterate over every location, classify each image, copy to output."""
@@ -216,11 +214,8 @@ def classify_density(
             )
             continue
 
-        # Check for BEV config availability
         use_bev = (
-            not no_bev
-            and "bev_matrix" in entry
-            and entry.get("road_length_m", 0) > 0
+            not no_bev and "bev_matrix" in entry and entry.get("road_length_m", 0) > 0
         )
         if use_bev:
             bev_matrix = entry["bev_matrix"]
@@ -228,7 +223,9 @@ def classify_density(
             mpp = entry["meters_per_pixel"]
             logger.info(
                 "  %s: using BEV mode (road=%.1fm, %.3f m/px)",
-                loc_name, road_length_m, mpp,
+                loc_name,
+                road_length_m,
+                mpp,
             )
 
         images_dir = loc_dir / "images"
@@ -261,8 +258,14 @@ def classify_density(
             boxes = parse_yolo_labels(label_path)
             if use_bev:
                 ratio, total_w = compute_density_ratio_bev(
-                    boxes, roi_polygon, img_w, img_h,
-                    bev_matrix, road_length_m, mpp, num_lanes,
+                    boxes,
+                    roi_polygon,
+                    img_w,
+                    img_h,
+                    bev_matrix,
+                    road_length_m,
+                    mpp,
+                    num_lanes,
                 )
             else:
                 ratio, total_w = compute_density_ratio(
@@ -525,7 +528,9 @@ def main() -> None:
     setup_logging(args.verbose)
 
     classify_density(
-        dry_run=args.dry_run, verbose=args.verbose, histogram=args.histogram,
+        dry_run=args.dry_run,
+        verbose=args.verbose,
+        histogram=args.histogram,
         no_bev=args.no_bev,
     )
 

@@ -212,7 +212,6 @@ def main():
             "cars_per_lane": cars_per_lane,
         }
 
-        # Compute BEV homography config
         bev_cfg = compute_bev_config(result_poly, num_lanes)
         if bev_cfg:
             entry_data.update(bev_cfg)
@@ -244,23 +243,30 @@ def _batch_recompute_bev(config_path: Path) -> None:
         polygon = entry.get("polygon", [])
         num_lanes = entry.get("num_lanes", 0)
         if len(polygon) < 4 or num_lanes < 1:
-            logger.warning("%s: skipped (polygon=%d verts, lanes=%d)",
-                           loc_name, len(polygon), num_lanes)
+            logger.warning(
+                "%s: skipped (polygon=%d verts, lanes=%d)",
+                loc_name,
+                len(polygon),
+                num_lanes,
+            )
             continue
         poly_arr = np.array(polygon, dtype=np.float32)
         bev_cfg = compute_bev_config(poly_arr, num_lanes)
         if bev_cfg:
             entry.update(bev_cfg)
             updated += 1
-            logger.info("%s: road %.1f×%.1f m, %.3f m/px",
-                        loc_name,
-                        bev_cfg["road_width_m"],
-                        bev_cfg["road_length_m"],
-                        bev_cfg["meters_per_pixel"])
+            logger.info(
+                "%s: road %.1f×%.1f m, %.3f m/px",
+                loc_name,
+                bev_cfg["road_width_m"],
+                bev_cfg["road_length_m"],
+                bev_cfg["meters_per_pixel"],
+            )
 
     save_road_roi(data, config_path)
-    logger.info("Recomputed BEV for %d / %d locations → %s",
-                updated, len(data), config_path)
+    logger.info(
+        "Recomputed BEV for %d / %d locations → %s", updated, len(data), config_path
+    )
 
 
 if __name__ == "__main__":

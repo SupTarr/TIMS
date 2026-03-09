@@ -71,23 +71,16 @@ def load_road_roi(config_path: Optional[Path] = None) -> dict[str, dict]:
                 "num_lanes": entry.get("num_lanes", 0),
                 "cars_per_lane": entry.get("cars_per_lane", 0),
             }
-            # Load BEV fields if present
+
             if "bev_matrix" in entry:
                 parsed["bev_matrix"] = np.array(entry["bev_matrix"], dtype=np.float64)
                 parsed["bev_matrix_inv"] = np.array(
-                    entry.get("bev_matrix_inv", np.eye(3).tolist()),
-                    dtype=np.float64,
+                    entry.get("bev_matrix_inv", np.eye(3).tolist()), dtype=np.float64
                 )
                 parsed["bev_size"] = entry.get("bev_size", [0, 0])
-                parsed["meters_per_pixel"] = float(
-                    entry.get("meters_per_pixel", 0.0)
-                )
-                parsed["road_length_m"] = float(
-                    entry.get("road_length_m", 0.0)
-                )
-                parsed["road_width_m"] = float(
-                    entry.get("road_width_m", 0.0)
-                )
+                parsed["meters_per_pixel"] = float(entry.get("meters_per_pixel", 0.0))
+                parsed["road_length_m"] = float(entry.get("road_length_m", 0.0))
+                parsed["road_width_m"] = float(entry.get("road_width_m", 0.0))
             roi_map[loc_name] = parsed
     return roi_map
 

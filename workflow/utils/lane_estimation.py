@@ -19,11 +19,7 @@ import cv2
 import numpy as np
 
 from ..common import LANE_VEHICLE_CLASSES
-from .bev_transform import (
-    STANDARD_LANE_WIDTH_M,
-    VEHICLE_LENGTHS_M,
-    transform_points,
-)
+from .bev_transform import STANDARD_LANE_WIDTH_M, VEHICLE_LENGTHS_M, transform_points
 from .lane_gmm import GMM_MIN_VEHICLES
 from .lane_gmm import _gmm_lane_count
 from .lane_kde import _kde_lane_count
@@ -168,18 +164,16 @@ def _perspective_normalise(
     KDE/GMM peak detection.
     """
     if bev_matrix is not None and bev_size is not None:
-        # BEV path: transform centroids, then normalise by BEV width
         centroids = inside[:, 1:3].astype(np.float64)
         bev_pts = transform_points(centroids, bev_matrix)
         bev_w = float(bev_size[0])
         if bev_w < 1e-6:
             return np.array([])
-        # x in BEV = cross-road, normalise to [0, 1]
+
         norm = bev_pts[:, 0] / bev_w
         norm = np.clip(norm, 0.0, 1.0)
         return norm
 
-    # Legacy path: depth-adaptive normalisation in camera space
     norm_positions: list[float] = []
     for cx, cy in inside[:, 1:3]:
         pt = np.array([cx, cy])
@@ -208,7 +202,6 @@ def _adaptive_geo_lane_estimate(
     When BEV parameters are available, uses the calibrated lane width
     (3.5 m / mpp) instead of the pixel-based heuristic.
     """
-    # BEV path: use calibrated lane width
     if bev_size is not None and meters_per_pixel is not None and meters_per_pixel > 0:
         bev_cross_px = float(bev_size[0])
         lane_width_px = STANDARD_LANE_WIDTH_M / meters_per_pixel
@@ -219,7 +212,6 @@ def _adaptive_geo_lane_estimate(
         )
         return estimate
 
-    # Legacy path
     cross_proj = polygon.astype(float) @ cross_axis
     cross_width_px = float(cross_proj.max() - cross_proj.min())
 
@@ -353,7 +345,6 @@ def estimate_cars_per_lane(
     if len(polygon) < 3 or num_lanes < 1:
         return DEFAULT_CARS_PER_LANE
 
-    # ── BEV path: use physical lengths ───────────────────────────
     if bev_config and bev_config.get("road_length_m", 0) > 0:
         road_length_m = bev_config["road_length_m"]
 
@@ -364,7 +355,6 @@ def estimate_cars_per_lane(
         )
 
         if len(inside) < MIN_VEHICLES_FOR_CPL_ESTIMATE:
-            # Fallback: assume average car (4.5 m) with 30% gap
             cars = max(1, int(road_length_m / (4.5 * 1.3)))
             logger.info(
                 f"  Cars/lane (BEV fallback): {cars} "
@@ -393,7 +383,6 @@ def estimate_cars_per_lane(
         )
         return cars
 
-    # ── Legacy pixel-based path ──────────────────────────────────
     road_axis, _, _ = _get_road_axes(polygon)
     vertex_proj = polygon.astype(float) @ road_axis
     road_length = float(vertex_proj.max() - vertex_proj.min())
