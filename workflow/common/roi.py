@@ -125,18 +125,26 @@ def filter_vehicles_in_roi(
     img_h: int,
 ) -> list[tuple[int, float, float, float, float]]:
     """
-    Return only boxes whose centre falls inside *roi_polygon*.
+    Return only boxes whose bounding area intersects with *roi_polygon*.
 
-    *boxes* use normalised coords; the polygon uses pixel coords.
+    *boxes* use normalised coords (class_id, x_center, y_center, width, height);
+    the polygon uses pixel coords.
     """
     if len(roi_polygon) < 3 or not boxes:
         return []
-    roi_contour = roi_polygon.reshape(-1, 1, 2).astype(np.float32)
-    return [
-        b
-        for b in boxes
-        if cv2.pointPolygonTest(
-            roi_contour, (float(b[1] * img_w), float(b[2] * img_h)), False
-        )
-        >= 0
-    ]
+
+    roi_mask = np.zeros((img_h, img_w), dtype=np.uint8)
+    cv2.fillPoly(roi_mask, [roi_polygon], 255)
+
+    filtered_boxes = []
+    for b in boxes:
+        cx, cy, bw, bh = b[1], b[2], b[3], b[4]
+        x1 = int(max(0, (cx - bw / 2) * img_w))
+        y1 = int(max(0, (cy - bh / 2) * img_h))
+        x2 = int(min(img_w - 1, (cx + bw / 2) * img_w))
+        y2 = int(min(img_h - 1, (cy + bh / 2) * img_h))
+
+        if roi_mask[y1 : y2 + 1, x1 : x2 + 1].any():
+            filtered_boxes.append(b)
+
+    return filtered_boxes
