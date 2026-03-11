@@ -415,9 +415,9 @@ def main():
     if args.base_dir:
         base_dir = Path(args.base_dir)
     else:
-        if args.dataset == "test":
+        if args.split == "test":
             base_dir = TEST_BY_LOCATION_PATH
-        elif args.dataset == "valid":
+        elif args.split == "valid":
             base_dir = VALID_BY_LOCATION_PATH
         else:
             base_dir = TRAIN_BY_LOCATION_PATH
