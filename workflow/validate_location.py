@@ -37,7 +37,9 @@ from .utils.clip_features import (
 from .common import (
     PCA_COMPONENTS,
     STRUCTURAL_WEIGHT,
+    TEST_BY_LOCATION_PATH,
     TRAIN_BY_LOCATION_PATH,
+    VALID_BY_LOCATION_PATH,
     detect_frame_modality,
     discover_locations,
     group_tiles_by_frame,
@@ -46,8 +48,6 @@ from .common import (
 from .utils.structural_features import extract_structural_batch
 
 logger = logging.getLogger(__name__)
-
-REPORT_PATH = TRAIN_BY_LOCATION_PATH / "validation_report.csv"
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -396,7 +396,14 @@ def main():
         help="Disable structural features (CLIP-only)",
     )
     parser.add_argument(
-        "--base-dir", type=str, default=None, help="Override train_by_location path"
+        "--split",
+        type=str,
+        default="train",
+        choices=["train", "test", "valid"],
+        help="Target dataset split to validate (train, test, valid) (default: train)",
+    )
+    parser.add_argument(
+        "--base-dir", type=str, default=None, help="Override the base directory path"
     )
     parser.add_argument(
         "--output", type=str, default=None, help="Override report CSV path"
@@ -405,8 +412,19 @@ def main():
     args = parser.parse_args()
     setup_logging()
 
-    base_dir = Path(args.base_dir) if args.base_dir else TRAIN_BY_LOCATION_PATH
-    report_path = Path(args.output) if args.output else REPORT_PATH
+    if args.base_dir:
+        base_dir = Path(args.base_dir)
+    else:
+        if args.dataset == "test":
+            base_dir = TEST_BY_LOCATION_PATH
+        elif args.dataset == "valid":
+            base_dir = VALID_BY_LOCATION_PATH
+        else:
+            base_dir = TRAIN_BY_LOCATION_PATH
+
+    report_path = (
+        Path(args.output) if args.output else base_dir / "validation_report.csv"
+    )
 
     logger.info("=" * 60)
     logger.info("Location Consistency Validation")
