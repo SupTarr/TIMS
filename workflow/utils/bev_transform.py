@@ -31,18 +31,18 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────────────────
 VEHICLE_LENGTHS_M: dict[int, float] = {
     0: 10.0,  # 10_full_truck
-    1: 16.5,  # 11_full_trailer
+    1: 18.0,  # 11_full_trailer
     2: 16.5,  # 12_semi_trailer
     3: 4.5,  # 13_modified_car
     4: 0.0,  # 14_pedestrian  (excluded)
     5: 1.8,  # 1_bicycle
     6: 2.2,  # 2_motorcycle
     7: 4.5,  # 3_car
-    8: 4.5,  # 4_car_7
-    9: 7.0,  # 5_small_bus
+    8: 4.8,  # 4_car_7
+    9: 5.5,  # 5_small_bus
     10: 9.0,  # 6_medium_bus
     11: 12.0,  # 7_large_bus
-    12: 5.0,  # 8_pickup
+    12: 5.3,  # 8_pickup
     13: 7.5,  # 9_truck
 }
 
