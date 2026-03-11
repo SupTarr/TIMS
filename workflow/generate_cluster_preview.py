@@ -83,7 +83,9 @@ def pick_sample_frames(frames: dict[str, list[dict]], n: int) -> list[str]:
     return [ts_sorted[i] for i in indices]
 
 
-def pick_frames_by_vehicle_count(frames: dict[str, list[dict]], n: int) -> list[tuple[str, int]]:
+def pick_frames_by_vehicle_count(
+    frames: dict[str, list[dict]], n: int
+) -> list[tuple[str, int]]:
     """Pick n timestamps sorted by bounding-box count (most vehicles first).
 
     Returns list of (timestamp, box_count) tuples in descending order.
@@ -300,7 +302,9 @@ def main():
                 n_boxes = len(boxes)
                 box_info = f" [{n_boxes} obj]" if n_boxes else ""
                 rank_label = f"#{col + 1}"
-                ax.set_title(f"{rank_label} loc_{loc_id} | {ts} ({period}){box_info}", fontsize=7)
+                ax.set_title(
+                    f"{rank_label} loc_{loc_id} | {ts} ({period}){box_info}", fontsize=7
+                )
             else:
                 ax.set_visible(False)
 

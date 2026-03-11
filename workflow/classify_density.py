@@ -28,13 +28,18 @@ import csv
 import logging
 import shutil
 import sys
+from pathlib import Path
 
 import numpy as np
 
 from .common import (
-    DENSITY_OUTPUT_PATH as OUTPUT_DIR,
+    DENSITY_OUTPUT_PATH,
+    DENSITY_TEST_OUTPUT_PATH,
+    DENSITY_VALID_OUTPUT_PATH,
     IMAGE_EXTENSIONS,
+    TEST_BY_LOCATION_PATH,
     TRAIN_BY_LOCATION_PATH,
+    VALID_BY_LOCATION_PATH,
     CCTV_PATTERN,
     discover_locations,
     filter_vehicles_in_roi,
@@ -154,24 +159,36 @@ def compute_density_ratio_bev(
 DENSITY_CLASSES = ("light", "medium", "high", "full")
 
 
-def classify_density(
-    dry_run: bool = False,
-    verbose: bool = False,
-    histogram: bool = False,
-    no_bev: bool = False,
-) -> None:
-    """Iterate over every location, classify each image, copy to output."""
-    roi_map = load_road_roi()
+def _classify_split(
+    split_name: str,
+    by_location_path: Path,
+    output_dir: Path,
+    roi_map: dict[str, dict],
+    dry_run: bool,
+    verbose: bool,
+    histogram: bool,
+    no_bev: bool,
+) -> list[dict]:
+    """
+    Classify images from a single split (train or valid).
 
-    locations = discover_locations()
+    Returns the list of per-image records.
+    """
+    locations = discover_locations(by_location_path)
     if not locations:
-        logger.error("No location folders found in %s", TRAIN_BY_LOCATION_PATH)
-        sys.exit(1)
+        logger.warning(
+            "No location folders in %s — skipping %s split",
+            by_location_path,
+            split_name,
+        )
+        return []
 
-    logger.info("Found %d locations", len(locations))
+    logger.info(
+        "[%s] Found %d locations in %s", split_name, len(locations), by_location_path
+    )
     if not dry_run and not histogram:
         for cls in DENSITY_CLASSES:
-            cls_dir = OUTPUT_DIR / cls
+            cls_dir = output_dir / cls
             if cls_dir.exists():
                 shutil.rmtree(cls_dir)
             cls_dir.mkdir(parents=True, exist_ok=True)
@@ -294,7 +311,7 @@ def classify_density(
                 )
 
             if not dry_run and not histogram:
-                dst = OUTPUT_DIR / density / img_path.name
+                dst = output_dir / density / img_path.name
                 shutil.copy2(str(img_path), str(dst))
 
             stats[density] += 1
@@ -315,14 +332,14 @@ def classify_density(
     if histogram:
         _print_histogram(all_records)
         _describe_distribution(all_records)
-        _export_csv(all_records)
-        return
+        _export_csv(all_records, output_dir)
+        return all_records
 
     total = sum(stats.values())
     prefix = "DRY RUN — " if dry_run else ""
     logger.info("")
     logger.info("=" * 60)
-    logger.info("%sClassification Summary", prefix)
+    logger.info("%s[%s] Classification Summary", prefix, split_name)
     logger.info("=" * 60)
     for cls in DENSITY_CLASSES:
         pct = (stats[cls] / total * 100) if total > 0 else 0
@@ -331,7 +348,42 @@ def classify_density(
     logger.info("=" * 60)
 
     if not dry_run:
-        logger.info("Images copied to: %s", OUTPUT_DIR)
+        logger.info("Images copied to: %s", output_dir)
+
+    return all_records
+
+
+def classify_density(
+    dry_run: bool = False,
+    verbose: bool = False,
+    histogram: bool = False,
+    no_bev: bool = False,
+    split: str = "train",
+) -> None:
+    """Iterate over every location, classify each image, copy to output."""
+    roi_map = load_road_roi()
+
+    splits_to_run: list[tuple[str, Path, Path]] = []
+    if split in ("train", "all"):
+        splits_to_run.append(("train", TRAIN_BY_LOCATION_PATH, DENSITY_OUTPUT_PATH))
+    if split in ("valid", "all"):
+        splits_to_run.append(
+            ("valid", VALID_BY_LOCATION_PATH, DENSITY_VALID_OUTPUT_PATH)
+        )
+    if split in ("test", "all"):
+        splits_to_run.append(("test", TEST_BY_LOCATION_PATH, DENSITY_TEST_OUTPUT_PATH))
+
+    for split_name, by_location_path, output_dir in splits_to_run:
+        _classify_split(
+            split_name=split_name,
+            by_location_path=by_location_path,
+            output_dir=output_dir,
+            roi_map=roi_map,
+            dry_run=dry_run,
+            verbose=verbose,
+            histogram=histogram,
+            no_bev=no_bev,
+        )
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -474,9 +526,9 @@ def _describe_distribution(records: list[dict]) -> None:
     logger.info("")
 
 
-def _export_csv(records: list[dict]) -> None:
+def _export_csv(records: list[dict], output_dir: Path = DENSITY_OUTPUT_PATH) -> None:
     """Write all per-image density data to a CSV alongside the output dir."""
-    csv_path = OUTPUT_DIR / "density_distribution.csv"
+    csv_path = output_dir / "density_distribution.csv"
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     with csv_path.open("w", newline="") as f:
         writer = csv.DictWriter(
@@ -523,6 +575,13 @@ def main() -> None:
         action="store_true",
         help="Force legacy (non-BEV) density computation even when BEV config exists.",
     )
+    parser.add_argument(
+        "--split",
+        type=str,
+        default="train",
+        choices=["train", "valid", "test", "all"],
+        help="Which split to classify: train, valid, test, or all (default: train).",
+    )
     args = parser.parse_args()
     setup_logging(args.verbose)
 
@@ -531,6 +590,7 @@ def main() -> None:
         verbose=args.verbose,
         histogram=args.histogram,
         no_bev=args.no_bev,
+        split=args.split,
     )
 
 
