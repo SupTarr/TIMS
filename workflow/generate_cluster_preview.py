@@ -83,6 +83,21 @@ def pick_sample_frames(frames: dict[str, list[dict]], n: int) -> list[str]:
     return [ts_sorted[i] for i in indices]
 
 
+def pick_frames_by_vehicle_count(frames: dict[str, list[dict]], n: int) -> list[tuple[str, int]]:
+    """Pick n timestamps sorted by bounding-box count (most vehicles first).
+
+    Returns list of (timestamp, box_count) tuples in descending order.
+    """
+    counts: list[tuple[str, int]] = []
+    for ts, tiles in frames.items():
+        rep = pick_representative(tiles)
+        lbl_path = label_path_for_image(rep["path"])
+        boxes = parse_yolo_labels(lbl_path)
+        counts.append((ts, len(boxes)))
+    counts.sort(key=lambda x: x[1], reverse=True)
+    return counts[:n]
+
+
 def overlay_roi(img_rgb: np.ndarray, polygon: np.ndarray) -> np.ndarray:
     """Draw filled ROI polygon overlay on an RGB image."""
     vis = img_rgb.copy()
@@ -238,26 +253,25 @@ def main():
         num_lanes = roi_entry.get("num_lanes", "?")
         cars_per_lane = roi_entry.get("cars_per_lane", "?")
 
-        sampled_ts = pick_sample_frames(frames, n_samples)
+        sampled = pick_frames_by_vehicle_count(frames, n_samples)
 
         for col in range(n_samples):
             ax = axes[row_idx][col]
             ax.axis("off")
-            if col < len(sampled_ts):
-                ts = sampled_ts[col]
+            if col < len(sampled):
+                ts, precount = sampled[col]
                 rep = pick_representative(frames[ts])
+                boxes = []
                 try:
                     img = np.array(Image.open(rep["path"]).convert("RGB"))
 
                     if draw_roi_flag and has_roi:
                         img = overlay_roi(img, polygon)
 
-                    boxes = []
-                    if draw_boxes_flag:
-                        lbl_path = label_path_for_image(rep["path"])
-                        boxes = parse_yolo_labels(lbl_path)
-                        if boxes:
-                            img = draw_boxes(img, boxes)
+                    lbl_path = label_path_for_image(rep["path"])
+                    boxes = parse_yolo_labels(lbl_path)
+                    if draw_boxes_flag and boxes:
+                        img = draw_boxes(img, boxes)
 
                     ax.imshow(img)
                     if col == 0:
@@ -283,9 +297,10 @@ def main():
                         transform=ax.transAxes,
                     )
                 period = time_period(rep["ts"], rep["path"])
-                n_boxes = len(boxes) if draw_boxes_flag else 0
+                n_boxes = len(boxes)
                 box_info = f" [{n_boxes} obj]" if n_boxes else ""
-                ax.set_title(f"loc_{loc_id} | {ts} ({period}){box_info}", fontsize=7)
+                rank_label = f"#{col + 1}"
+                ax.set_title(f"{rank_label} loc_{loc_id} | {ts} ({period}){box_info}", fontsize=7)
             else:
                 ax.set_visible(False)
 
