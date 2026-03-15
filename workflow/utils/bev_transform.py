@@ -86,7 +86,7 @@ def order_quadrilateral(pts: np.ndarray) -> np.ndarray:
     cx, cy = pts.mean(axis=0)
 
     angles = np.arctan2(pts[:, 1] - cy, pts[:, 0] - cx)
-    cw_order = np.argsort(-angles)
+    cw_order = np.argsort(angles)
     pts = pts[cw_order]
 
     sums = pts.sum(axis=1)
@@ -270,6 +270,10 @@ def compute_bev_config(
         return {}
 
     quad = reduce_to_quad(poly) if len(poly) > 4 else poly.reshape(4, 2)
+    if len(quad) != 4:
+        logger.warning("Polygon could not be reduced to 4 vertices — cannot compute BEV config")
+        return {}
+    
     ordered = order_quadrilateral(quad)
 
     bev_w, bev_h, mpp = compute_bev_scale(ordered, num_lanes, lane_width_m)
