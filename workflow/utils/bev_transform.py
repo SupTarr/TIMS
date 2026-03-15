@@ -271,9 +271,11 @@ def compute_bev_config(
 
     quad = reduce_to_quad(poly) if len(poly) > 4 else poly.reshape(4, 2)
     if len(quad) != 4:
-        logger.warning("Polygon could not be reduced to 4 vertices — cannot compute BEV config")
+        logger.warning(
+            "Polygon could not be reduced to 4 vertices — cannot compute BEV config"
+        )
         return {}
-    
+
     ordered = order_quadrilateral(quad)
 
     bev_w, bev_h, mpp = compute_bev_scale(ordered, num_lanes, lane_width_m)
