@@ -132,7 +132,7 @@ def _polygon_cross_extent_at_depth(
 def _filter_vehicles_in_polygon(
     polygon: np.ndarray, label_data: np.ndarray
 ) -> np.ndarray:
-    """Return rows of *label_data* whose centroid lies inside *polygon*."""
+    """Return rows of *label_data* whose bottom-center lies inside *polygon*."""
     mask_cls = np.isin(label_data[:, 0].astype(int), list(LANE_VEHICLE_CLASSES))
     vehicles = label_data[mask_cls]
     if len(vehicles) == 0:
@@ -141,8 +141,8 @@ def _filter_vehicles_in_polygon(
     poly_contour = polygon.reshape(-1, 1, 2).astype(np.float32)
     inside_mask = np.array(
         [
-            cv2.pointPolygonTest(poly_contour, (float(cx), float(cy)), False) >= 0
-            for cx, cy in vehicles[:, 1:3]
+            cv2.pointPolygonTest(poly_contour, (float(cx), float(cy + h / 2.0)), False) >= 0
+            for cx, cy, w, h in vehicles[:, 1:5]
         ]
     )
     return vehicles[inside_mask]

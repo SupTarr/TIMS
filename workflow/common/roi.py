@@ -133,18 +133,15 @@ def filter_vehicles_in_roi(
     if len(roi_polygon) < 3 or not boxes:
         return []
 
-    roi_mask = np.zeros((img_h, img_w), dtype=np.uint8)
-    cv2.fillPoly(roi_mask, [roi_polygon], 255)
-
+    poly_contour = roi_polygon.reshape(-1, 1, 2).astype(np.float32)
     filtered_boxes = []
+    
     for b in boxes:
-        cx, cy, bw, bh = b[1], b[2], b[3], b[4]
-        x1 = int(max(0, (cx - bw / 2) * img_w))
-        y1 = int(max(0, (cy - bh / 2) * img_h))
-        x2 = int(min(img_w - 1, (cx + bw / 2) * img_w))
-        y2 = int(min(img_h - 1, (cy + bh / 2) * img_h))
-
-        if roi_mask[y1 : y2 + 1, x1 : x2 + 1].any():
+        cx_px = b[1] * img_w
+        cy_px = b[2] * img_h
+        h_px = b[4] * img_h
+        bottom_y = cy_px + (h_px / 2.0)
+        if cv2.pointPolygonTest(poly_contour, (float(cx_px), float(bottom_y)), False) >= 0:
             filtered_boxes.append(b)
 
     return filtered_boxes
